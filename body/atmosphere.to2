@@ -1,0 +1,39 @@
+// dynamicPressure (Q)
+// atm_pressure
+// drag
+// atmLossSpeed
+// travelTime
+use { Body } from ksp::orbit
+use { Vessel, Part } from ksp::vessel
+
+use { OneAtmPressure, MinAltitude } from body::constant
+
+pub sync fn clear_altitude(body: Body) -> float = {
+    return MinAltitude + atmosphere_depth(body)
+}
+
+pub sync fn atmosphere_depth(body: Body) -> float = {
+    return if(body.has_atmosphere) body.atmosphere_depth else 0.0
+}
+
+pub sync fn atm_influence(vessel : Vessel, engine : Part) -> float = {
+    const thrustVac = engine.engine_module.value.max_thrust_output_vac
+    const thrustAtm = engine.engine_module.value.max_thrust_output_atm
+    return thrustVac + (thrustAtm - thrustVac) * (vessel.static_pressure_kpa / OneAtmPressure)
+}
+
+// sync fn atm_influence(body: ksp::orbit::Body, altitudeSealevel: float, thrustAtm: float, thrustVac: float) -> float = {
+//     if(!body.has_atmosphere)
+//         return thrustVac
+//     // WolframAlpha : atmoPressure = 102240.e^(-0.000165192x) with x = alt
+//     // I, Adrien : atmoPressure = 101325 * e^(-x/5700) with x = alt, 101325 = pressure at sealevel, and 5700 out of nowhere (now, it's wiki documented)
+//     // wikipedia : Barometric formula : https://en.wikipedia.org/wiki/Barometric_formula
+//     // considering temperature as a constant for a body (wrong, but let's say)
+//     // AtmoPressure = seaLevelPressure * e^((-g0 * M * (alt - altAtSeaLevel)) / (R * seaLevelTemperatureKELVIN))
+//     // R = universal gas constant: 8.3144598 J/(mol·K)
+//     // M = molar mass of Earth's air: 0.0289644 kg/mol
+//     // with wiki's formula, it seems the «mysterious constant» to be 8576 with base temp 20°C (293°K)
+//     const atmoSeaLevelPressure = 101325 // put variable when it will be available in Kontrol System
+//     const atmAtAlt = atmoSeaLevelPressure * exp( -clamp(altitudeSealevel, 0.0, body.atmosphere_depth) / 5700)
+//     return thrustAtm + ( (thrustVac - thrustAtm) * (1 - (atmAtAlt / atmoSeaLevelPressure)) )
+// }

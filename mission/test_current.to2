@@ -1,0 +1,47 @@
+use { CONSOLE } from ksp::console
+use { Vessel } from ksp::vessel
+
+use { sanitityCheck, takeOff } from maneuver::takeof
+use { Ship } from ship::ship
+
+use { sleep } from ksp::game
+
+use * from ship::debug
+use * from ui::debug
+use { test_language } from to2
+
+/// Entry Point
+pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
+    // Clear the console
+    CONSOLE.clear()
+    CONSOLE.print_line((0..80).reduce("", fn(strike, c) -> strike + "-"))
+    // let startProc = current_time()
+    // test_language(vessel)
+    // stage_debug(vessel)
+    // engineering_debug(vessel)
+    // ship_debug(vessel)
+    // part_debug(vessel)
+
+    // Stage(vessel, 3).drop()
+    // hms_debug()
+    // dms_debug()
+    // logRandGen_debug()
+    // (0..vessel.staging.total_count).map(fn(s) -> engine_debug(vessel, s))
+    // resources_debug(vessel)
+    // vessel.parts.filter(fn(p) -> p.decoupler.defined).map(fn(p) -> CONSOLE.print_line("A:" + p.activation_stage.to_string() + "|D:" + p.decouple_stage.to_string() + "|" + p.part_name))
+    // CONSOLE.print_line("temp de traitement : " + (current_time() - startProc).to_string())
+
+
+
+    const ship = Ship(vessel)
+    // sanitityCheck(ship)
+    if(sanitityCheck(ship))
+        takeOff(ship)
+
+    // for(t in 0..15) {
+    //     CONSOLE.print_line("vessel(" + t.to_string() + ") :" + vessel.parts.reduce(0.0, fn(sum, p) -> sum + p.total_mass).to_fixed(2))
+    //     CONSOLE.print_line("ship(" + t.to_string() + ") :" + ship.mass().to_fixed(2))
+    //     sleep(1)
+    // }
+    CONSOLE.print_line(vessel.name + " end mission")
+}

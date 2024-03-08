@@ -1,0 +1,201 @@
+use { Vessel, VesselSituation, DeployableDeployState } from ksp::vessel
+use { sleep } from ksp::game
+// use { CONSOLE } from ksp::console
+
+use { AscentProfile } from maneuver::constant
+use { Ship } from ship::ship
+use { sanitityCheck, takeOff } from maneuver::takeof
+use { ascent } from maneuver::ascent
+use { fast_orbit, create_orbit, semiMajorAxis, orbitalToGeoLongitude } from body::orbit
+use { clear_altitude } from body::atmosphere
+
+/// Entry Point
+pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
+    ksp::console::CONSOLE.clear()
+    const ship = Ship(vessel)
+
+vessel.parts
+    .filter(fn(p) -> p.is_cargo_bay)
+    .map(fn(p) -> ksp::console::CONSOLE.print_line("cargo: " + p.part_name))
+
+const testrecipe = vessel.parts
+    .filter_map(fn(p) -> p.engine_module)
+    // .map(tn(m) -> m.propellants.recipe_ingredients|(resource: )) we still don't know which engine mode lead to which propellant.
+// for (tr in testrecipe){
+//     ksp::console::CONSOLE.print_line(tr.part_name + " propellants list size: " + tr.propellants.length.to_string())
+//     tr.propellants
+//         .map(fn(f) -> {
+//             ksp::console::CONSOLE.print_line("recip list size: " + f.recipe_ingredients.length.to_string())
+//             f.recipe_ingredients.map(fn(r) -> {
+//                 ksp::console::CONSOLE.print_line("resource: " + r.resource.display_name)
+//                 ksp::console::CONSOLE.print_line("resource: " + r.units.to_string())
+//                 return true
+//             })
+//             return true
+//         })
+// }
+// return Ok({})
+
+vessel.delta_v.stages.map(fn(s) -> ksp::console::CONSOLE.print_line(s.get_deltav(ksp::vessel::DeltaVSituation.Vaccum).to_string()))
+
+// ksp::console::CONSOLE.print_line("test Eq GlobalVector") // dont work
+// if(vessel.global_facing.vector == vessel.global_up)
+//     ksp::console::CONSOLE.print_line("test Eq GlobalVector OK (eq)")
+// else
+//     ksp::console::CONSOLE.print_line("test Eq GlobalVector KO (ne)")
+
+// const apart = vessel.parts[0] // dont work
+// const testEqPart = vessel.parts.filter(fn(p) -> p == apart)[0]
+// ksp::console::CONSOLE.print_line("test eq part" + testEqPart.part_name)
+
+const testVecEqLeftOp = ksp::math::vec3(0.0, 0.0, 0.0)
+const testVecEqRightOp = ksp::math::vec3(1.0, 1.0, 2.0)
+ksp::console::CONSOLE.print_line("test eq vec" + (testVecEqLeftOp == testVecEqRightOp).to_string())
+
+ksp::console::CONSOLE.print_line("test park")
+const toDeploy0 = ship.check_deploy()
+ksp::game::wait_until(fn() -> ship.is_deployed(toDeploy0))
+
+ksp::console::CONSOLE.print_line("deployed")
+ship.park()
+return Ok({})
+
+const toDeploy1 = ship.check_deploy()
+ksp::game::wait_until(fn() -> ship.is_deployed(toDeploy1))
+sleep(5)
+
+const startRecording = ksp::game::current_time()
+ksp::console::CONSOLE.print_line("start recording")
+let solarLogs = ship.ship.parts
+    .filter(fn(p) -> p.solar_panel.defined)
+    .map(fn(p) -> (module: p.solar_panel.value, name: p.part_name, flow: 0.0))
+while(ksp::game::current_time() < startRecording + (60 * 5)) {
+    solarLogs = solarLogs
+        .map(fn(r) -> (module: r.module, name: r.name, flow: (if(r.module.energy_flow > r.flow) r.module.energy_flow else r.flow)))
+    ksp::game::yield()
+}
+for(r in solarLogs) {
+    ksp::console::CONSOLE.print_line("part name : " + r.name)
+    ksp::console::CONSOLE.print_line("max flow  : " + r.flow.to_string())
+    ksp::console::CONSOLE.print_line("----------------------")
+}
+ksp::console::CONSOLE.print_line("end recording")
+
+ship.check_retract()
+
+
+ksp::game::wait_until(fn() -> ship.is_retracted(toDeploy1))
+const toDeploy2 = ship.check_deploy(true)
+ksp::game::wait_until(fn() -> ship.is_deployed(toDeploy2))
+sleep(5)
+ship.check_retract()
+
+return Ok({})
+
+ship.ship.parts
+    .filter(fn(p) -> p.fairing.defined)
+    .filter(fn(p) -> !p.fairing.value.is_jettisoned)
+    .map(fn(p) -> ksp::console::CONSOLE.print_line("part name : " + p.part_name + "|" + p.fairing.value.ejection_force.to_string() + "|" + p.fairing.value.is_jettisoned.to_string()))
+ksp::console::CONSOLE.print_line("-------------------")
+ship.ship.parts
+    .filter(fn(p) -> p.is_fairing)
+    .map(fn(p) -> ksp::console::CONSOLE.print_line("part name : " + p.part_name))
+ksp::console::CONSOLE.print_line("-------------------")
+ship.ship.parts
+    .filter(fn(p) -> p.deployable.defined)
+    .map(fn(p) -> ksp::console::CONSOLE.print_line("part name : " + p.part_name + "|" + p.deployable.value.deploy_state.to_string() + "|" + p.deployable.value.extendable.to_string()))
+return Ok({})
+
+const resources = vessel.parts
+    .filter(fn(p) -> p.resources.list.length > 0)
+    .reduce(<(display: string, id: int)>[], fn(flat, p) -> flat + p.resources.list.map(fn(d) -> (display:d.resource.display_abbreviation, id:d.resource.id)))
+for(r in resources)
+    ksp::console::CONSOLE.print_line(r.display + ": " + r.id.to_string())
+ksp::console::CONSOLE.print_line("----------------------")
+const command = ship.ship.parts.filter(fn(p) -> p.command_module.defined)
+for (c in command) {
+    ksp::console::CONSOLE.print_line("command: " + c.part_name)
+    ksp::console::CONSOLE.print_line("position: " + (c.position - vessel.position).to_string())
+    ksp::console::CONSOLE.print_line("rotation: " + c.global_rotation.to_local(vessel.control_frame).to_string())
+}
+ksp::console::CONSOLE.print_line("----------------------")
+const solarPanels = vessel.parts
+    .filter(fn(p) -> p.solar_panel.defined)
+    .sort_by(fn(p) -> p.position.z - vessel.position.z)
+for(sp in solarPanels) {
+    const pos = sp.position - vessel.position
+    const rot = sp.global_rotation.to_local(vessel.control_frame)
+    ksp::console::CONSOLE.print_line("part: " + sp.part_name)
+    ksp::console::CONSOLE.print_line("part: " + sp.solar_panel.value.part_name)
+    ksp::console::CONSOLE.print_line("position: " + pos.to_string())
+    ksp::console::CONSOLE.print_line("rotation: " + rot.to_string())
+    // ksp::console::CONSOLE.print_line("rotation: " + rot.to_string())
+    ksp::console::CONSOLE.print_line("deployable: " + sp.deployable.defined.to_string())
+    if(sp.deployable.defined){
+        ksp::console::CONSOLE.print_line("deployed: " + sp.deployable.value.deploy_state.to_string())
+        ksp::console::CONSOLE.print_line("extendable: " + sp.deployable.value.extendable.to_string())
+        ksp::console::CONSOLE.print_line("retractable: " + sp.deployable.value.retractable.to_string())
+    }
+    ksp::console::CONSOLE.print_line("bloking: " + (if(sp.solar_panel.value.blocking_body.defined) sp.solar_panel.value.blocking_body.value.name else "None"))
+    ksp::console::CONSOLE.print_line("flow: " + sp.solar_panel.value.energy_flow.to_string())
+}
+ksp::console::CONSOLE.print_line("----------------------")
+    // ksp::console::CONSOLE.print_line("vessel geocoord: (" + vessel.geo_coordinates.latitude.to_fixed(3) + "; " + vessel.geo_coordinates.longitude.to_fixed(3) + ")")
+    // ksp::console::CONSOLE.print_line("vessel up mag: (" + vessel.up.magnitude.to_fixed(3) + ")")
+    ksp::console::CONSOLE.print_line("vessel height: (" + ship.height().to_fixed(3) + ")")
+ksp::console::CONSOLE.print_line("----------------------")
+const deployables = vessel.parts
+    .filter(fn(p) -> p.deployable.defined)
+    .map(fn(p) -> p.deployable.value)
+for(m in deployables) {
+        ksp::console::CONSOLE.print_line("part: " + m.part_name)
+        ksp::console::CONSOLE.print_line("deployed: " + m.deploy_state.to_string())
+        ksp::console::CONSOLE.print_line("extendable: " + m.extendable.to_string())
+        ksp::console::CONSOLE.print_line("retractable: " + m.retractable.to_string())
+}
+const sectionVec = vessel.global_facing.to_local(vessel.control_frame).vector.cross(vessel.global_up.to_local(vessel.control_frame))
+const todeploy = vessel.parts
+    .filter(fn(p) -> p.deployable.defined)
+    .filter(fn(p) -> p.deployable.value.extendable && p.deployable.value.retractable && p.deployable.value.deploy_state == DeployableDeployState.Extended)
+    .sort_by(fn(p) -> (core::math::abs(p.global_position.to_local(vessel.control_frame).dot(sectionVec)) * vessel.global_center_of_mass.to_local(vessel.control_frame)).magnitude)
+    .map(fn(p) -> p.deployable.value)
+const toto = vessel.parts
+    .filter(fn(p) -> p.deployable.defined)
+    .filter(fn(p) -> p.deployable.value.extendable && p.deployable.value.retractable && p.deployable.value.deploy_state == DeployableDeployState.Retracted)
+    .map(fn(p) -> (name: p.part_name, distance: (core::math::abs(p.global_position.to_local(vessel.control_frame).dot(sectionVec)) * vessel.global_center_of_mass.to_local(vessel.control_frame)).magnitude))
+    .sort_by(fn(r) -> r.distance)
+for(bidule in toto)
+    ksp::console::CONSOLE.print_line("part: " + bidule.name + "|distance: " + bidule.distance.to_string())
+
+
+for(m in todeploy) {
+    m.set_extended(true)
+    // ksp::game::sleep(1)
+}
+
+    ksp::game::sleep(10)
+
+for(m in todeploy.reverse()) {
+    m.set_extended(false)
+    ksp::game::sleep(1)
+}
+
+    return Ok({})
+    // const KerbinLowOrbit = create_orbit(vessel.main_body, clear_altitude(vessel.main_body), 30.0, semiMajorAxis(vessel.main_body, clear_altitude(vessel.main_body), clear_altitude(vessel.main_body) + 10000), orbitalToGeoLongitude(vessel.main_body, vessel.orbit.LAN), 0.0)
+    const KerbinLowOrbit = create_orbit(vessel.main_body, clear_altitude(vessel.main_body), 30.0, semiMajorAxis(vessel.main_body, clear_altitude(vessel.main_body), clear_altitude(vessel.main_body) + 10000), vessel.orbit.LAN, 0.0)
+    // const KerbinLowOrbit = fast_orbit(vessel)
+
+
+
+    if (vessel.situation == VesselSituation.PreLaunch){
+        if(!sanitityCheck(ship))
+            return Err("Vessel unable to carry out its mission \r\n")
+        takeOff(ship)
+    }
+    // ascent(ship, 80000, 0, AscentProfile.Logarithmic)
+    // ascent(ship, fast_orbit(vessel), AscentProfile.Trigonometric)
+    if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Trigonometric)
+    // if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Logarithmic)
+
+    return Ok({})
+}

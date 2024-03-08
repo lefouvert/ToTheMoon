@@ -1,0 +1,59 @@
+use { CONSOLE } from ksp::console
+use { CONSOLE_WINDOW, screen_size } from ksp::ui
+use { DEBUG } from ksp::debug
+use { vec2 } from ksp::math
+use { MAINFRAME, wait_until } from ksp::game
+use { Vessel } from ksp::vessel
+
+use { Ship } from ship::ship
+
+// const ship: Cell<Option<Ship>> = Cell(None())
+
+/// Entry Point
+pub fn main_flight(vessel: Vessel, missionFolder : string = "mission") -> Result<Unit, string> = {
+    const missionRoot = missionFolder + (if(missionFolder.length > 0) "::" else "")
+    const vesselName = (missionRoot + vessel.name.replace(" ", "_").replace("-", "_")).to_lower()
+    const foundProcesses = MAINFRAME.available_processes
+        .filter(fn(mission) -> vesselName.contains(mission.name.to_lower()))
+        .map(fn(mission) -> (name: mission.name, value: (vesselName.length - mission.name.length)))
+        .sort_by(fn(evaluated) -> evaluated.value)
+
+    vessel.actions.light = false
+    vessel.actions.sas = false
+    vessel.actions.rcs = false
+
+    //  Clear markers
+    DEBUG.clear_markers()
+
+    // Clear the console
+    CONSOLE.clear()
+    CONSOLE_WINDOW.open()
+    // CONSOLE_WINDOW.position = vec2(-screen_size().x / 2, screen_size().y / 2) + vec2(70, -40)
+    // CONSOLE_WINDOW.size = vec2(400, 900)
+    CONSOLE_WINDOW.position = vec2(-screen_size().x / 2, screen_size().y / 2) + vec2(70, 10) // Debug config
+    CONSOLE_WINDOW.size = vec2(720, 1000) // Debug config
+
+    CONSOLE.print_line((0..80).reduce("", fn(strike, c) -> strike + "-"))
+    CONSOLE.print_line("-------- Boot sequence --------")
+    CONSOLE.print_line("searching a mission for '" + vessel.name + "'")
+    CONSOLE.print_line("in " + (if(missionFolder.length > 0) ("'" + missionFolder + "'") else "root") + " folder")
+    CONSOLE.print_line("template : " + vesselName)
+
+    if (foundProcesses.length > 0) {
+        CONSOLE.print_line("found : " + foundProcesses[0].name)
+        CONSOLE.print_line("===============================")
+        CONSOLE.print_line(vessel.name + " start mission")
+        // lower the value is, better the process name is
+        const mission = MAINFRAME.find_process(foundProcesses[0].name).value
+        mission.start()
+        wait_until(fn() -> mission.is_running)
+        wait_until(fn() -> !mission.is_running)
+        CONSOLE.print_line("===============================")
+        CONSOLE.print_line(vessel.name + " end mission")
+    } else {
+        CONSOLE.print_line(vesselName + " mission not found")
+        CONSOLE.print_line("Available processes : ")
+        for(p in MAINFRAME.available_processes)
+            CONSOLE.print_line("  " + p.name)
+    }
+}

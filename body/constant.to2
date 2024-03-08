@@ -1,0 +1,6 @@
+
+pub const OneAtmPressure: float = 101325.0
+
+pub const MinAltitude: float = 10000.0
+
+pub const InsignificantAtmoshpere: float = 1e-4

@@ -1,0 +1,102 @@
+use { CONSOLE } from ksp::console
+use { Vessel } from ksp::vessel
+
+use { Stage } from ship::stage
+use { Ship } from ship::ship
+use { ThrustSituation } from ship::constant
+
+pub fn part_debug(vessel: Vessel) -> Unit = {
+    CONSOLE.print_line("A-D-Part name------------------------")
+    // const sortedParts = vessel.parts.sort()
+    vessel.parts
+        .sort_by(fn(p) -> p.activation_stage)
+        .map(fn(p) -> CONSOLE.print_line(p.activation_stage.to_string() + " " + p.decouple_stage.to_string() + " " + p.part_name))
+
+    CONSOLE.print_line("")
+    CONSOLE.print_line("--- VESSEL.STAGING.PARTS_IN_STAGE ---")
+    CONSOLE.print_line("A-D-Part name------------------------")
+    (0..vessel.staging.total_count)
+        .map(fn(i) -> vessel.staging.parts_in_stage(i))
+        .map(fn(sp) -> sp
+            .map(fn(p) -> CONSOLE.print_line(p.activation_stage.to_string() + " " + p.decouple_stage.to_string() + " " + p.part_name)))
+}
+
+pub sync fn engine_debug(vessel: Vessel, stage: int) -> Unit = {
+    vessel.parts
+        .filter(fn(p) -> p.activation_stage == stage && p.engine_module.defined)
+        .map(fn(p) -> {
+            CONSOLE.print_line("    ")
+            CONSOLE.print_line("allow restart           : " + p.engine_module.value.current_engine_mode.allow_restart.to_string())
+            CONSOLE.print_line("allow shutdown          : " + p.engine_module.value.current_engine_mode.allow_shutdown.to_string())
+            CONSOLE.print_line("max thrust              : " + p.engine_module.value.current_engine_mode.max_thrust.to_string())
+            CONSOLE.print_line("min thrust              : " + p.engine_module.value.current_engine_mode.min_thrust.to_string())
+            CONSOLE.print_line("name                    : " + p.engine_module.value.current_engine_mode.name)
+            CONSOLE.print_line("throttle locked         : " + p.engine_module.value.current_engine_mode.throttle_locked.to_string())
+
+            CONSOLE.print_line("current throttle        : " + p.engine_module.value.current_throttle.to_string())
+            CONSOLE.print_line("current thrust          : " + p.engine_module.value.current_thrust.to_string())
+            CONSOLE.print_line("max fuel flow           : " + p.engine_module.value.max_fuel_flow.to_string())
+            CONSOLE.print_line("max_thrust_output_atm   : " + p.engine_module.value.max_thrust_output_atm.to_string())
+            CONSOLE.print_line("max_thrust_output_vac   : " + p.engine_module.value.max_thrust_output_vac.to_string())
+            CONSOLE.print_line("part name               : " + p.engine_module.value.part_name)
+            CONSOLE.print_line("real isp                : " + p.engine_module.value.real_isp.to_string())
+            CONSOLE.print_line("throttle min            : " + p.engine_module.value.throttle_min.to_string())
+            CONSOLE.print_line("max Fuel Flow           : " + p.engine_module.value.max_fuel_flow.to_string())
+            p.engine_module.value.engine_modes.map(fn(m) -> CONSOLE.print_line("engineType              : " + m.engine_type.to_string()))
+        })
+}
+
+pub fn stage_debug(vessel : Vessel) -> Unit = {
+    for(i in 0..vessel.staging.total_count){
+            const stage = Stage(vessel, i)
+            CONSOLE.print_line("=========== STAGE " + i.to_string() + " ===========")
+            CONSOLE.print_line("stage activation number : " + stage.activation_number.to_string())
+            CONSOLE.print_line("stage hasEngine         : " + stage.has_engine().to_string())
+            CONSOLE.print_line("stage flameout          : " + stage.flameout().to_string())
+            CONSOLE.print_line("stage partial flameout  : " + stage.partial_flameout().to_string())
+            CONSOLE.print_line("stage thrust default    : " + stage.thrust().to_fixed(3))
+            CONSOLE.print_line("stage thrust param      : " + stage.thrust(ThrustSituation.Max_Atm).to_fixed(3))
+            CONSOLE.print_line("stage twr default (cao) : " + stage.twr().to_fixed(3))
+            CONSOLE.print_line("stage twr current       : " + stage.twr(ThrustSituation.Current).to_fixed(3))
+            CONSOLE.print_line("stage twr min           : " + stage.twr(ThrustSituation.Min).to_fixed(3))
+            CONSOLE.print_line("stage isp               : " + stage.isp().to_fixed(3))
+            CONSOLE.print_line("stage dV                : " + stage.deltaV().to_fixed(3))
+            CONSOLE.print_line("stage burntime          : " + stage.burntime().to_fixed(3))
+            CONSOLE.print_line("engine list (activation): ")
+            for (e in stage.engines.activation)
+                CONSOLE.print_line("    " + e.part_name)
+            CONSOLE.print_line("engine list (decouple)  : ")
+            for (e in stage.engines.decouple)
+                CONSOLE.print_line("    " + e.part_name)
+    }
+}
+
+pub fn ship_debug(vessel : Vessel) -> Unit = {
+        const ship = Ship(vessel)
+        CONSOLE.print_line("============= SHIP =============")
+        CONSOLE.print_line("ship name               : " + ship.ship.name)
+        CONSOLE.print_line("ship static pressure    : " + ship.ship.static_pressure_kpa.to_string())
+        CONSOLE.print_line("ship mass               : " + ship.mass().to_fixed(3))
+        CONSOLE.print_line("ship first thrust stage : " + (ship.firstThrustStage()|-1).to_string())
+        CONSOLE.print_line("ship thrust default     : " + ship.thrust().to_fixed(3))
+        CONSOLE.print_line("ship thrust param       : " + ship.thrust(ThrustSituation.Max_Atm).to_fixed(3))
+        CONSOLE.print_line("ship twr default        : " + ship.twr().to_fixed(3))
+        CONSOLE.print_line("ship twr current        : " + ship.twr(ThrustSituation.Current).to_fixed(3))
+        CONSOLE.print_line("ship twr current as on  : " + ship.twr(ThrustSituation.CurrentAsOn).to_fixed(3))
+        CONSOLE.print_line("ship isp                : " + ship.isp().to_fixed(3))
+        CONSOLE.print_line("ship dV                 : " + ship.deltaV().to_fixed(3))
+        CONSOLE.print_line("ship burntime           : " + ship.burntime().to_fixed(3))
+        ship.print("test")
+}
+
+pub fn resources_debug(vessel : Vessel) -> Unit = {
+    CONSOLE.print_line("========== RESSOURCES ==========")
+    vessel.parts
+    .filter(fn(p) -> p.resources.list.length > 0)
+    .sort_by(fn(p) -> p.activation_stage)
+    .map(fn(p) -> {
+        CONSOLE.print_line(p.activation_stage.to_string() + " " + p.decouple_stage.to_string() + " " + p.part_name)
+        p.resources.list
+            .map(fn(rl) -> CONSOLE.print_line("    " + rl.resource.display_name + "|" + rl.resource.display_abbreviation + "|" + rl.resource.name + "|" + rl.resource.id.to_string()))
+    })
+}

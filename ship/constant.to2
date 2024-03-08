@@ -1,0 +1,82 @@
+
+pub type ThrustSituationConst = int
+
+pub const ThrustSituation: (Current: ThrustSituationConst, CurrentAsOn: ThrustSituationConst, Max_Vac: ThrustSituationConst, Max_Atm: ThrustSituationConst, Min: ThrustSituationConst) = (
+    Current: 2**0,
+    CurrentAsOn: 2**1,
+    Max_Vac: 2**2,
+    Max_Atm: 2**3,
+    Min: 2**4
+)
+
+pub type MassStateConst = int
+
+pub const MassState: (Total: MassStateConst, TotalDry: MassStateConst, LocalDry: MassStateConst) = (
+    Total: 2**0,
+    TotalDry: 2**1,
+    LocalDry: 2**2
+)
+
+pub type ResourceConst = int
+
+pub const Resource: (MP: ResourceConst, SF: ResourceConst, Air: ResourceConst, H: ResourceConst, CH4: ResourceConst, Ox: ResourceConst, EC: ResourceConst, Xe: ResourceConst, Ab: ResourceConst) = (
+    MP: 1,  // "ME"->"MP" Monopropellant
+    SF: 2,  // "ES"->"SF" Solid Fuel
+    Air: 3, // "Air"->"Air" Air
+    H: 6,   // "H"->"H" Helium
+    CH4: 7, // "CH4"->"CH4" Methane (Liquid Fuel)
+    Ox: 8,  // "Ox"->"Ox" Oxygen
+    EC: 12, // "CE"->"EC" Electrical Charge
+    Xe: 13, // "Xe"->"Xe" Xenon
+    Ab: 15  // "Ab"->"Ab" Ablator
+)
+
+pub const EngineFuel: (Fuel: int, Engine: string)[] = [
+    (Fuel: Resource.MP, Engine: "MonoProp"), // "ME"->"MP" Monopropellant
+    (Fuel: Resource.SF, Engine: "SolidBooster"), // "ES"->"SF" Solid Fuel
+    (Fuel: Resource.Air, Engine: "Turbine"), // "Air"->"Air" Air
+    (Fuel: Resource.H, Engine: "Nuclear"), // "H"->"H" Helium
+    (Fuel: Resource.CH4, Engine: "Methalox"), // "CH4"->"CH4" Methane (Liquid Fuel)
+    (Fuel: Resource.CH4, Engine: "Turbine"), // "CH4"->"LF" Methane (Liquid Fuel)
+    (Fuel: Resource.Ox, Engine: "Methalox"), // "Ox"->"Ox" Oxygen
+    (Fuel: Resource.EC, Engine: "Electric"), // "CE"->"EC" Electrical Charge
+    (Fuel: Resource.Xe, Engine: "Electric") // "Xe"->"Xe" Xenon
+]
+
+pub type CaseConst = int
+
+pub const Case: (NOT_IGN: CaseConst, FLAMEOUT: CaseConst, EMPTY: CaseConst) = (
+    NOT_IGN: 0,
+    FLAMEOUT: 1,
+    EMPTY:2
+)
+
+
+pub type TwrConst = float
+
+pub const Twr: (Min: TwrConst, Ideal: TwrConst, Max: TwrConst) = (
+    Min: 1.05,
+    Ideal: 1.8,
+    Max: 4.0
+)
+
+
+pub type ThrottleConst = float
+
+pub const Throttle: (Max: ThrottleConst, Min: ThrottleConst) = (
+    Max: 1.0,
+    Min: 0.0
+)
+
+// pub const SolarPanel: (Name: string, MaxFlow: float)[] = [
+//     (Name: "solararray_0v_flat", MaxFlow: 0.145209029316902), // OX-STAT
+//     (Name: "solararray_1v_1x6", MaxFlow: 0.968068957328796), // OX-4L
+//     (Name: "solararray_1v_3x2", MaxFlow: 0.968069076538086), // OX-4W
+//     (Name: "solararray_1v_shielded_1x6", MaxFlow: 0.968068957328796), // SP-4L
+//     (Name: "solararray_1v_shielded_3x2", MaxFlow: 0.968069076538086), // SP-4W
+//     (Name: "solararray_1v_flat", MaxFlow: 1.21007525920868), // OX-STAT-XL
+//     (Name: "solararray_1v_circular", MaxFlow: 3.3882417678833), // OX-10C
+//     (Name: "solararray_1v_circular_shielded", MaxFlow: 3.3882417678833), // SP-10C
+//     (Name: "solararray_2v_accordion", MaxFlow: 11.6168279647827), // SP-XL 'Gigantor'
+//     (Name: "solararray_3v_large", MaxFlow: 33.8824119567871), // SP-XXL 'Colosse'
+// ]

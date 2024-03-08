@@ -1,0 +1,47 @@
+use { open_window, open_centered_window, screen_size, Align } from ksp::ui
+use { wait_until } from ksp::game
+
+use { Array } from math::constant
+
+// default as undefined make the dialog box not able to be skipped
+pub fn ask(title: string, message: string, default: Option<bool> = Some(false)) -> bool = {
+    const answer: Cell<Option<bool>> = Cell(None())
+    const fontSize = 16
+
+    const width = if (message.length > 0) message
+            .split("\r\n")
+            .sort_by(fn(m) -> m.length)
+            .reverse()[Array.First].length * fontSize / 2
+        else
+            0
+
+
+    const dialog = open_centered_window(title, width, 0)
+        message
+            .split("\r\n")
+            .map(fn(m) -> {
+                const text = dialog.add_label(m, Align.Center, 0.0)
+                text.font_size = fontSize
+            })
+
+        const div = dialog.add_horizontal(40, Align.Center, 0.0)
+            const yesButt = div.add_button("Yes", Align.End, 0.0)
+                yesButt.font_size = fontSize
+                yesButt.on_click(fn() -> {answer.value = Some(true) return})
+            const noButt = div.add_button("No", Align.End, 0.0)
+                noButt.font_size = fontSize
+                noButt.on_click(fn() -> {answer.value = Some(false) return} )
+
+    wait_until(fn() -> answer.value.defined || dialog.is_closed)
+
+    if(dialog.is_closed)
+        if(default.defined)
+            answer.value = Some(default.value)
+        else { // can't be onerowed because of 'Some()' need sync fn
+            const persist = ask(title, message, default)
+            answer.value = Some(persist)
+        }
+
+    dialog.close()
+    return answer.value.value
+}

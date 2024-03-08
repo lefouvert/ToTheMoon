@@ -1,0 +1,53 @@
+use { CONSOLE } from ksp::console
+use { floor, log10, abs, round, truncate, clamp_degrees360, MAX_FLOAT } from core::math
+use { Vessel } from ksp::vessel
+use { prefixUnit, Sexagesimal, Array } from math::constant
+
+pub fn engineeringNotation(value: float, significantDigit: int = 3) -> string = {
+    const shiftSig = (
+        if (significantDigit < 0)
+            1
+        else if (significantDigit >= log10(MAX_FLOAT).to_int)
+            log10(MAX_FLOAT).to_int
+        else
+            significantDigit
+    ) - 1
+    if (value == 0.0)
+        return value.to_fixed(shiftSig) + " "
+    const shiftLog = floor(log10(abs(value)))
+
+    const pu = prefixUnit
+        .filter(fn(rec) -> rec.scale == floor(log10(abs(value)) / 3).to_int)
+        .map(fn(rec) -> rec.symbol)
+    if (pu.length == Array.Empty)
+        return "Unreachable prefix"
+
+    let result = round(value / 10.0**(shiftLog - shiftSig)) * 10.0**(-shiftSig) // Erase unsignificants digits
+    result = result * 10.0**((3 + shiftLog % 3) % 3) // Shift significants digits
+
+    return result.to_fixed(shiftSig - log10(abs(result)).to_int) + (if(pu.length > 0) " " + pu[Array.First] else " ")
+}
+
+// pub fn ydhms(timespan: float) -> (year: float, day: float, hour: float, minute: float, second: float) = {
+//     return (year: 0.0, day: 0.0, hour: 0.0, minute: 0.0, second: 0.0)
+// }
+
+pub fn hms(timespan: float) -> (positive: bool, hour: int, minute: int, second: float) = {
+    // floor((t%B^n)÷B^(n-1)) where B is base and n is base shift
+    return (
+        positive: timespan >= 0,
+        hour: abs(truncate(timespan / Sexagesimal**2)).to_int,
+        minute: abs(truncate((timespan % Sexagesimal**2) / Sexagesimal)).to_int,
+        second: abs(timespan % Sexagesimal)
+    )
+}
+
+pub fn dms(angle: float) -> (degree: int, minute: int, second: float) = {
+    // floor((t%B^n)÷B^(n-1)) where B is base and n is base shift
+    const angle360 = clamp_degrees360(angle)
+    return (
+        degree: truncate(angle360).to_int,
+        minute: truncate((angle360 % Sexagesimal**0) / Sexagesimal**-1).to_int,
+        second: (angle360 % Sexagesimal**-1) / Sexagesimal**-2
+    )
+}

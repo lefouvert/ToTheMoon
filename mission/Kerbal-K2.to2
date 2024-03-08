@@ -1,0 +1,64 @@
+use { Vessel, VesselSituation } from ksp::vessel
+// use { CONSOLE } from ksp::console
+
+use { AscentProfile, Apsis } from maneuver::constant
+use { Ship } from ship::ship
+use { sanitityCheck, takeOff } from maneuver::takeof
+use { ascent } from maneuver::ascent
+// use { set_apsis } from maneuver::setapsis
+use { circularize } from maneuver::circularize
+use { fast_orbit, create_orbit, semiMajorAxis } from body::orbit
+use { expected_LAN } from ship::navigation
+use { clear_altitude } from body::atmosphere
+
+/// Entry Point
+pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
+
+    const ship = Ship(vessel)
+
+
+    // ksp::console::CONSOLE.print_line("vessel geocoord: (" + vessel.geo_coordinates.latitude.to_fixed(3) + "; " + vessel.geo_coordinates.longitude.to_fixed(3) + ")")
+    // ksp::console::CONSOLE.print_line("vessel up mag: (" + vessel.up.magnitude.to_fixed(3) + ")")
+
+    // const KerbinLowOrbit = create_orbit(vessel.main_body, clear_altitude(vessel.main_body), 30.0, semiMajorAxis(vessel.main_body, clear_altitude(vessel.main_body), clear_altitude(vessel.main_body) + 10000), orbitalToGeoLongitude(vessel.main_body, vessel.orbit.LAN), 0.0)
+    // const peri = clear_altitude(vessel.main_body)
+    const peri = 200000.0
+    const inclination = 30
+    // const KerbinLowOrbit = create_orbit(vessel.main_body, clear_altitude(vessel.main_body), inclination, semiMajorAxis(vessel.main_body, clear_altitude(vessel.main_body), clear_altitude(vessel.main_body) + 10000), expected_LAN(vessel.geo_coordinates, inclination).value, 0.0)
+    // const KerbinLowOrbit = create_orbit(vessel.main_body, clear_altitude(vessel.main_body), inclination, semiMajorAxis(vessel.main_body, clear_altitude(vessel.main_body), clear_altitude(vessel.main_body) + 10000), vessel.geo_coordinates.longitude, 0.0)
+    const KerbinLowOrbit = create_orbit(vessel.main_body, peri, inclination, semiMajorAxis(vessel.main_body, peri, peri + 250000), expected_LAN(vessel.geo_coordinates, inclination).value, 0.0)
+    // const KerbinLowOrbit = fast_orbit(vessel)
+
+// while(true){
+//     const timestamp = ui::unit::hms(body::orbit::eta_trueAnomaly(vessel.orbit, 0))
+//     ksp::console::CONSOLE.print_at(1, 1, (if(timestamp.positive) "+" else "-")
+//             + timestamp.hour.to_string() + "h"
+//             + timestamp.minute.to_string().pad_left("00".length).replace(" ", "0") + "m"
+//             + timestamp.second.to_fixed(2).pad_left("00.00".length).replace(" ", "0") + "s"
+//     )
+//     ksp::game::yield()
+// }
+
+// const satN = 4
+// ksp::console::CONSOLE.print_line("LOS: " + body::orbit::resonant_orbit_min_LOS(vessel.main_body, satN).to_fixed(0))
+// ksp::console::CONSOLE.print_line("alt: " + body::orbit::resonant_orbit(vessel.main_body, body::orbit::resonant_orbit_min_LOS(vessel.main_body, satN), satN, true).to_fixed(0))
+// pub sync fn resonant_orbit(body: Body, satAlt: float, satNumber: int, dive: bool = false) -> float = {
+// return Ok({})
+
+    if (vessel.situation == VesselSituation.PreLaunch){
+        if(!sanitityCheck(ship))
+            return Err("Vessel unable to carry out its mission \r\n")
+        takeOff(ship)
+    }
+    // ascent(ship, 80000, 0, AscentProfile.Logarithmic)
+    // ascent(ship, fast_orbit(vessel), AscentProfile.Trigonometric)
+    if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Trigonometric)
+    // if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Logarithmic)
+
+    // set_apsis(ship, Apsis.Periapsis, KerbinLowOrbit.apoapsis|0)
+    // set_apsis(ship, Apsis.Periapsis, KerbinLowOrbit.periapsis)
+    circularize(ship)
+    ship.park()
+
+    return Ok({})
+}

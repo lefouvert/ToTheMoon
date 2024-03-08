@@ -1,0 +1,103 @@
+use { Vessel } from ksp::vessel
+use { wait_until, current_time } from ksp::game
+use { min } from core::math
+use { CONSOLE } from ksp::console
+
+use { ThrustSituation, Twr, Throttle } from ship::constant
+use { Stage } from ship::stage
+use { Ship } from ship::ship
+use { fast_orbit, orbit_deltaV } from body::orbit
+use { ask } from ui::yndialog
+
+fn checkSystem(condition: bool, systemName: string) -> bool = {
+    const checkResult = if (condition) " : Ok." else " : No go."
+    const tab = (systemName.length..23).reduce("", fn(agg, c) -> agg + ".")
+    CONSOLE.print_line("Checking " + systemName + " ..." + tab + checkResult)
+    return condition
+}
+
+fn errorMessage(message: string, faultyResult: string = "", voidable: bool = false) -> bool = {
+    const header = if(voidable) "WARNING : " else "ERROR : "
+    const strike = (0..(message.length + header.length)).reduce("", fn(agg, c) -> agg + "-")
+    CONSOLE.print_line(strike)
+    CONSOLE.print_line(header + message)
+    CONSOLE.print_line(strike)
+    if (faultyResult.length > 0)
+        CONSOLE.print_line(faultyResult)
+    if(voidable)
+        return ask((header), (message + "\r\n" + faultyResult + "\r\n Take off anyway ?"), None())
+    return false
+}
+
+pub fn sanitityCheck(ship: Ship) -> bool = {
+    const minimalOrbit = fast_orbit(ship.ship) 
+    const requiredDeltaV = orbit_deltaV(ship.ship.orbit, minimalOrbit, ship.ship.altitude_scenery, minimalOrbit.periapsis)//3400.0 // TODO waiting to write orbits functions
+    if(!requiredDeltaV.defined)
+        return errorMessage("Unable to define required deltaV")
+
+    const is_controlable = ship.ship.parts.exists(fn(p) -> p.command_module.defined)
+    const has_engine = ship.firstThrustStage().defined
+    const twrMax = if(has_engine) ship.stages[ship.firstThrustStage().value].twr(ThrustSituation.CurrentAsOn) else 0.0
+    const twrMin = if(has_engine) ship.stages[ship.firstThrustStage().value].twr(ThrustSituation.Min) else 0.0
+
+    const toto = ship.twr()
+
+    CONSOLE.print_line("--------- Sanity Check --------")
+    CONSOLE.print_line("Preparing take off from " + ship.ship.main_body.name + ".")
+
+    // if(!checkSystem(is_controlable, "command module existence"))
+    if(!checkSystem(is_controlable, "command module presence"))
+        if(!errorMessage("NO COMMAND MODULE"))
+            return false
+    if(!checkSystem(has_engine, "thrust ability"))
+        if(!errorMessage("NO THRUST STAGE"))
+            return false
+    // if(!checkSystem( (ship.ship.staging.current - (ship.firstThrustStage()|0)) <= 1, "thrust positioning "))
+    //     return errorMessage("CHECK YOUR STAGING", "(First thrust stage : " + (ship.firstThrustStage()|0).to_string() + ") > (First stage : " + (ship.ship.staging.current).to_string() + " - 1)")
+    if(!checkSystem(twrMax > Twr.Min, "maximum TWR (" + twrMax.to_fixed(2) + ")" ))
+        if(!errorMessage("MAXIMAL THRUST BELOW RESONABLE VALUE.", " < " + Twr.Min.to_string(), true))
+            return false
+    if(!checkSystem(twrMin < Twr.Max, "minimum TWR (" + twrMin.to_fixed(2) + ")" ))
+        if(!errorMessage("MINIMAL THRUST ABOVE RESONABLE VALUE.", " > " + Twr.Max.to_string(), true))
+            return false
+    if (!checkSystem(ship.deltaV() > requiredDeltaV.value, "embeded fuel (" + ship.deltaV().to_fixed(0) + " m/s)"))
+        if(!errorMessage("INSUFFICIANT DELTAV TO REACH ORBIT.", "(current) " + ship.deltaV().to_fixed(0) + " m/s < " + requiredDeltaV.value.to_fixed(0) + " m/s (minimum expected)", true))
+            return false
+    return true
+}
+
+// TODO write waiting for ignition function
+
+pub fn takeOff(ship: Ship) -> Unit = {
+    CONSOLE.print_line("----------- Take-off ----------")
+    ship.print_status()
+    if (!ship.firstThrustStage().defined) {
+        ship.print("Please perform a sanity check before take off.")
+        return
+    }
+
+    ship.check_science()
+    wait_until(fn() -> !ship.science_running())
+    ship.check_science()
+
+    ship.launch_timeStamp = current_time()
+    ship.ship.actions.light = true
+    ship.ship.actions.sas = true
+    ship.ship.actions.rcs = false
+    ship.ship.release_control()
+    // CONSOLE.print_line("thtt: " + min(Throttle.Max, (Twr.Ideal / ship.stages[ship.firstThrustStage().value].twr(ThrustSituation.CurrentAsOn))).to_string())
+    ship.ship.set_throttle(min(Throttle.Max, (Twr.Ideal / ship.stages[ship.firstThrustStage().value].twr(ThrustSituation.CurrentAsOn))))
+// ksp::game::sleep(10.0)
+    CONSOLE.print_line("-------- Flight events --------")
+
+    ship.check_staging(false)
+    // ship.check_staging()
+    ship.print("IGNITION.")
+
+    wait_until(fn() -> ship.twr(ThrustSituation.Current) > Twr.Min)
+    ship.launch_timeStamp = current_time()
+    ship.drop()
+    ship.print("TAKE OFF.")
+
+    wait_until(fn() -> ship.ship.altitude_scenery > 2 * ship.height())
+}

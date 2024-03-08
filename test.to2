@@ -1,0 +1,38 @@
+use { Vessel } from ksp::vessel
+
+use * from ship::debug
+use * from ui::debug
+use { test_language } from to2
+
+/// Entry Point
+pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
+// pub fn main(vessel: Vessel) -> Result<Unit, string> = {
+    ksp::console::CONSOLE.clear()
+    // let startProc = current_time()
+    // test_language(vessel)
+    stage_debug(vessel)
+    // engineering_debug(vessel)
+    ship_debug(vessel)
+    part_debug(vessel)
+    // Stage(vessel, 3).drop()
+    // hms_debug()
+    // dms_debug()
+    // logRandGen_debug()
+    // (0..vessel.staging.total_count).map(fn(s) -> engine_debug(vessel, s))
+    // resources_debug(vessel)
+    // vessel.parts.filter(fn(p) -> p.decoupler.defined).map(fn(p) -> CONSOLE.print_line("A:" + p.activation_stage.to_string() + "|D:" + p.decouple_stage.to_string() + "|" + p.part_name))
+    // CONSOLE.print_line("temp de traitement : " + (current_time() - startProc).to_string())
+
+    const ship = ship::ship::Ship(vessel)
+    // ship.test()
+    // ship.stages[ship.current_stage].engines.activation.reduce(" ", fn(agg, p) -> agg + "\r\n" + p.part_name)
+    // ship.stages[ship.current_stage].engines.decouple.reduce(" ", fn(agg, p) -> agg + "\r\n" + p.part_name)
+
+    for (p in ship.stages[ship.current_stage].engines.activation)
+        ksp::console::CONSOLE.print_line("Act: " + p.part_name)
+
+    for (p in ship.stages[ship.current_stage].engines.decouple)
+        ksp::console::CONSOLE.print_line("Dcp: " + p.part_name)
+
+    return Ok({})
+}

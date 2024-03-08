@@ -1,0 +1,74 @@
+// //global
+// if not (defined const)
+//     global const is lexicon("lowestNotZero", 1e-323, "quadrant", 90, "minute", 60, "kilo", 1000).
+// else if not const:haskey("kilo"){
+//     // if not const:haskey("lowestNotZero")
+//         const:add("lowestNotZero", 1e-323).
+//     // if not const:haskey("quadrant")
+//         const:add("quadrant", 90).
+//     // if not const:haskey("minute")
+//         const:add("minute", 60).
+//     // if not const:haskey("kilo")
+//         const:add("kilo", 1000).
+// }
+
+// if defined bootloader {
+//     if bootloader:capacity:size > bootloader:capacity:edge1
+//         bootloader:addDependancy("0:/libs/math1.ks").
+// }
+
+// // headway between 0 to 1
+// global function earlyWeightConcave {                                // 1|
+//     parameter headway.                                              //   \
+//     return arcSin(1 - lockRange(headway, 0, 2)) / const:quadrant.   // 0   _1
+// }
+
+// // global function notZero {
+// //     parameter value.
+// //     local edge is const:lowestNotZero * 1e200.
+// //     if  value < edge
+// //     and value >= 0
+// //         return edge.
+// //     if  value > -edge
+// //     and value < 0
+// //         return -edge.
+// //     return value.
+// // }
+
+
+// global function deviation {
+//     // parameter aimDirection, objectDirection is facing .
+//     parameter aimDir, objectDir is facing .
+//     return vAng(aimDir:vector, objectDir:vector).
+// }
+
+// // remember
+// //  1   _
+// //    /   \
+// // -1|  0  |1
+// // y = 1 + -x × tan(x) / const:quadrant
+/////////////////////////////////////////////
+// global function quadraticEq {
+//     parameter a, b, c.  // where ax² + bx + c = 0
+//     local dicriminant is b^2 - 4*a*c.
+//     if dicriminant > 0
+//         return lexicon("soluce1", (-b + sqrt(dicriminant)) / (2 * a), "soluce2", (-b - sqrt(dicriminant)) / (2 * a), "real", true).
+//     else
+//         return lexicon("real", false).
+// }
+
+// // headway between 0 to 1
+// global function earlyWeightConvex {                                 // 1 _
+//     parameter headway.                                              //    \
+//     return arcCos(lockRange(headway, -1, 1)) / const:quadrant.      // 0   |1
+// }
+
+// global function lateWeightConcave {                                 // 1    |
+//     parameter headway.                                              //     /
+//     return arcSin(lockRange(headway, -1, 1)) / const:quadrant.      // 0 _  1
+// }
+
+// global function lateWeightConvex {                                  // 1   _
+//     parameter headway.                                              //   /
+//     return arcCos(1 - lockRange(headway, 0, 2)) / const:quadrant.   // 0|   1
+// }

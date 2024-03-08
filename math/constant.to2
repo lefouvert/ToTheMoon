@@ -1,0 +1,52 @@
+
+pub const prefixUnit: (scale: int, symbol: string)[] = [
+    (scale:10, symbol: "Q"),
+    (scale:9, symbol: "R"),
+    (scale:8, symbol: "Y"),
+    (scale:7, symbol: "Z"),
+    (scale:6, symbol: "E"),
+    (scale:5, symbol: "P"),
+    (scale:4, symbol: "T"),
+    (scale:3, symbol: "G"),
+    (scale:2, symbol: "M"),
+    (scale:1, symbol: "k"),
+    (scale:0, symbol: ""),
+    (scale:-1, symbol: "m"),
+    (scale:-2, symbol: "µ"),
+    (scale:-3, symbol: "n"),
+    (scale:-4, symbol: "p"),
+    (scale:-5, symbol: "f"),
+    (scale:-6, symbol: "a"),
+    (scale:-7, symbol: "z"),
+    (scale:-8, symbol: "y"),
+    (scale:-9, symbol: "r"),
+    (scale:-10, symbol: "q"),
+]
+
+pub type CircleConst = float
+
+pub const Circle: (None: CircleConst, Quarter: CircleConst, Semi: CircleConst, ThreeQuarter: CircleConst, Full: CircleConst) = (
+    None: 0.0,
+    Quarter: 90.0,
+    Semi: 180.0,
+    ThreeQuarter: 270.0,
+    Full: 360.0
+)
+
+
+pub type ArrayConst = int
+
+pub const Array: (Empty: ArrayConst, First: ArrayConst) = (
+    Empty: 0,
+    First: 0
+)
+
+pub const Sexagesimal: float = 60.0
+
+
+pub type SignConst = float
+
+pub const Sign: (Positive: SignConst, Negative: SignConst) = (
+    Positive: 1.0,
+    Negative: -1.0
+)

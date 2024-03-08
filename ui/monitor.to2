@@ -1,0 +1,378 @@
+use { Vessel } from ksp::vessel
+use { wait_until, yield } from ksp::game
+use { format } from core::str
+use { RAD_TO_DEG } from core::math
+use { open_window, open_centered_window, screen_size, Align } from ksp::ui
+
+use { ThrustSituation, ThrustSituationConst } from ship::constant
+use { Ship } from ship::ship
+use { g, g0 } from body::orbit
+use { compassFromDirection, compassFromOrbit } from ship::navigation
+use { engineeringNotation } from ui::unit
+
+const displayMode: Cell<ThrustSituationConst> = Cell(ThrustSituation.Current)
+
+const sName: Cell<string> = Cell("")
+const sStages: Cell<int> = Cell(0)
+const sCurrentStage: Cell<int> = Cell(0)
+const sFts: Cell<string> = Cell("")
+const sThrust: Cell<float> = Cell(0)
+const sMass: Cell<float> = Cell(0)
+const sTwr: Cell<float> = Cell(0)
+const sIsp: Cell<float> = Cell(0)
+const sBurnTime: Cell<float> = Cell(0)
+const sDeltaV: Cell<float> = Cell(0)
+
+const bName: Cell<string> = Cell("")
+const bRadius: Cell<string> = Cell("")
+const bAtmosphereDepth: Cell<string> = Cell("")
+const bGAtSeaLevel: Cell<float> = Cell(0)
+const bParent: Cell<string> = Cell("")
+
+const nAltitude: Cell<string> = Cell("")
+const nLongitude: Cell<float> = Cell(0)
+const nLatitude: Cell<float> = Cell(0)
+const nCompass: Cell<float> = Cell(0)
+
+const oPeriapsis: Cell<string> = Cell("")
+const oApoapsis: Cell<string> = Cell("")
+const oInclination: Cell<float> = Cell(0)
+const oLongitutdeAscendingNode: Cell<float> = Cell(0)
+const oArgumentOfPeriapsis: Cell<float> = Cell(0)
+const oEccentricity: Cell<float> = Cell(0)
+const oPeriod: Cell<float> = Cell(0)
+const oCompassFromLongitude: Cell<float> = Cell(0)
+const oTrueAnomaly: Cell<float> = Cell(0)
+
+// TODO button current as on
+// TODO block body
+
+/// Entry Point
+pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
+    const ship = Ship(vessel)
+    // const stages: (activation_number: Cell<int>, has_engine: Cell<bool>, flameout: Cell<bool>, partial_flameout: Cell<bool>, thrust: Cell<float>, twr: Cell<float>, isp: Cell<float>, burntime: Cell<float>, deltaV: Cell<float>, engine_by_activation: Cell<string[]>, engine_by_decouple: Cell<string[]>, mass: Cell<float> )[] =
+    const stages: (activation_number: Cell<int>, has_engine: Cell<bool>, ignited: Cell<bool>, flameout: Cell<bool>, partial_flameout: Cell<bool>, thrust: Cell<float>, twr: Cell<float>, isp: Cell<float>, burntime: Cell<float>, deltaV: Cell<float>, engine_by_activation: Cell<string[]>, engine_by_decouple: Cell<string[]>, mass: Cell<float>)[] =
+        ship.stages
+            .map(fn(s) -> {(
+                activation_number: Cell(s.activation_number),
+                has_engine: Cell(s.has_engine()),
+                ignited: Cell(s.ignited()),
+                flameout: Cell(s.flameout()),
+                partial_flameout: Cell(s.partial_flameout()),
+                thrust: Cell(s.thrust(displayMode.value)),
+                twr: Cell(s.twr(displayMode.value)),
+                isp: Cell(s.isp(displayMode.value)),
+                burntime: Cell(s.burntime()),
+                deltaV: Cell(s.deltaV()),
+                engine_by_activation: Cell(s.engines.activation.map(fn(e) -> e.part_name)),
+                engine_by_decouple: Cell(s.engines.decouple.map(fn(e) -> e.part_name)),
+                mass: Cell(0.0)
+            )})
+                // mass:Cell(ship::stage::mass_from(s.activation_number))
+// test
+    const fontSize = 12
+    const pRight = 20
+    const spacer = (0..10).reduce("", fn(agg, c) -> agg + " ")
+    const blockGap = 10
+
+    const dialog = open_centered_window("Monitor", 0, 0)
+        const updateLabel = dialog.add_label("TO UPDATE", Align.Stretch)
+        const blockRoot = dialog.add_horizontal(blockGap)
+            const blockHardware = blockRoot.add_vertical(0, Align.Stretch)
+                const buttonSwitch = blockHardware.add_button("Switch to 'Current as ON'", Align.Stretch)
+                    buttonSwitch.font_size = fontSize
+                    buttonSwitch.on_click(fn() -> {
+                        if(displayMode.value == ThrustSituation.Current) {
+                            buttonSwitch.label = "Toggle to 'Current as ON'"
+                            displayMode.set_value(ThrustSituation.CurrentAsOn)
+                        } else {
+                            buttonSwitch.label = "Switch to 'Current'"
+                            displayMode.set_value(ThrustSituation.Current)
+                        }
+                        // displayMode.update(fn(current) -> {
+                        //     if(current == ThrustSituation.Current) {
+                        //         buttonSwitch.label = "Toggle to 'Current as ON'"
+                        //         // buttonSwitch.label = "Switch to 'Current'"
+                        //         return ThrustSituation.CurrentAsOn
+                        //     }
+                        //     buttonSwitch.label = "Switch to 'Current'"
+                        //     // buttonSwitch.label = "Switch to 'Current as ON'"
+                        //     ThrustSituation.Current
+                        // })
+                    })
+                const blockShip = blockHardware.add_vertical_panel(0, Align.Stretch)
+                    const shipName = blockShip
+                        .add_label("", Align.Center)
+                        .bind(sName, "{0:" + spacer + "}")
+                    shipName.font_size = fontSize
+                    const shipStages = blockShip
+                        .add_label("")
+                        .bind(sStages, "stages number".pad_right(pRight) + " : {0:###,##0}")
+                    shipStages.font_size = fontSize
+                    const shipCurrentStage = blockShip
+                        .add_label("")
+                        .bind(sCurrentStage, "current stage".pad_right(pRight) + " : {0:###,##0}")
+                    shipCurrentStage.font_size = fontSize
+                    const shipFts = blockShip
+                        .add_label("")
+                        .bind(sFts, "first thrust stage".pad_right(pRight) + " : {0:" + spacer + "}")
+                    shipFts.font_size = fontSize
+                    const shipThrust = blockShip
+                        .add_label("")
+                        .bind(sThrust, "thrust".pad_right(pRight) + " : {0:###,##0.00} N")
+                    shipThrust.font_size = fontSize
+                    const shipMass = blockShip
+                        .add_label("")
+                        .bind(sMass, "mass".pad_right(pRight) + " : {0:###,##0.00} t")
+                    shipMass.font_size = fontSize
+                    const shipTwr = blockShip
+                        .add_label("")
+                        .bind(sTwr, "twr".pad_right(pRight) + " : {0:###,##0.00}")
+                    shipTwr.font_size = fontSize
+                    const shipIsp = blockShip
+                        .add_label("")
+                        .bind(sIsp, "isp".pad_right(pRight) + " : {0:###,##0.00} s")
+                    shipIsp.font_size = fontSize
+                    const shipBurntime = blockShip
+                        .add_label("")
+                        .bind(sBurnTime, "burntime".pad_right(pRight) + " : {0:###,##0.00} s")
+                    shipBurntime.font_size = fontSize
+                    const shipDeltaV = blockShip
+                        .add_label("")
+                        .bind(sDeltaV, "vacuum deltaV".pad_right(pRight) + " : {0:###,##0.00} m/s")
+                    shipDeltaV.font_size = fontSize
+                const blockStage = blockHardware.add_vertical_panel(0, Align.Stretch)
+                    const stageTitle = blockStage.add_label("Stage", Align.Center)
+                    stageTitle.font_size = fontSize
+                    // _0_ in order to sort labels as intended
+                    const stageLabels = stages.map(fn(s) -> {(
+                        _0_activation_number: blockStage
+                            .add_label("")
+                            .bind(s.activation_number, "============= STAGE {0:###,##0} ============="),
+                        _1_has_engine: blockStage
+                            .add_label("")
+                            .bind(s.has_engine, "has engine".pad_right(pRight) + " : {0:G" + spacer + "}"),
+                        _2_ignited: blockStage
+                            .add_label("")
+                            .bind(s.ignited, "ignited".pad_right(pRight) + " : {0:G" + spacer + "}"),
+                        _3_flameout: blockStage
+                            .add_label("")
+                            .bind(s.flameout, "flameout".pad_right(pRight) + " : {0:G" + spacer + "}"),
+                        _4_partial_flameout: blockStage
+                            .add_label("")
+                            .bind(s.partial_flameout, "partial flameout".pad_right(pRight) + " : {0:G" + spacer + "}"),
+                        _5_thrust: blockStage
+                            .add_label("")
+                            .bind(s.thrust, "thrust".pad_right(pRight) + " : {0:###,##0.00} N"),
+                        _6_twr: blockStage
+                            .add_label("")
+                            .bind(s.twr, "twr".pad_right(pRight) + " : {0:###,##0.00}"),
+                        _7_isp: blockStage
+                            .add_label("")
+                            .bind(s.isp, "isp".pad_right(pRight) + " : {0:###,##0.00} s"),
+                        _8_burntime: blockStage
+                            .add_label("")
+                            .bind(s.burntime, "burntime".pad_right(pRight) + " : {0:###,##0.00} s"),
+                        _9_deltaV: blockStage
+                            .add_label("")
+                            .bind(s.deltaV, "vacuum deltaV".pad_right(pRight) + " : {0:###,##0.00} m/s")
+// test
+                        , _A_mass: blockStage
+                            .add_label("")
+                            .bind(s.mass, "mass_from".pad_right(pRight) + " : {0:###,##0.00} t")
+                    )})
+                    for (sl in stageLabels) {
+                            sl._0_activation_number.font_size = fontSize
+                            sl._1_has_engine.font_size = fontSize
+                            sl._2_ignited.font_size = fontSize
+                            sl._3_flameout.font_size = fontSize
+                            sl._4_partial_flameout.font_size = fontSize
+                            sl._5_thrust.font_size = fontSize
+                            sl._6_twr.font_size = fontSize
+                            sl._7_isp.font_size = fontSize
+                            sl._8_burntime.font_size = fontSize
+                            sl._9_deltaV.font_size = fontSize
+// test
+                            sl._A_mass.font_size = fontSize
+                    }
+            const blockGeoloc = blockRoot.add_vertical(0, Align.Stretch, 0.0)
+                const blockBody = blockGeoloc.add_vertical_panel(0, Align.Stretch, 0.0)
+                    const bodyName = blockBody
+                        .add_label("", Align.Center)
+                        .bind(bName, "{0:" + spacer + "}")
+                    bodyName.font_size = fontSize
+                    const bodyRadius = blockBody
+                        .add_label("")
+                        .bind(bRadius, "radius".pad_right(pRight) + " : {0:" + spacer + "}")
+                    bodyRadius.font_size = fontSize
+                    const bodyAtmosphereDepth = blockBody
+                        .add_label("")
+                        .bind(bAtmosphereDepth, "atmosphere depth".pad_right(pRight) + " : {0:" + spacer + "}")
+                    bodyAtmosphereDepth.font_size = fontSize
+                    const bodyGAtSeaLevel = blockBody
+                        .add_label("")
+                        .bind(bGAtSeaLevel, "g at sea level".pad_right(pRight) + " : {0:###,##0.00}")
+                    bodyGAtSeaLevel.font_size = fontSize
+                    const bodyParent = blockBody
+                        .add_label("")
+                        .bind(bParent, "parent".pad_right(pRight) + " : {0:G" + spacer + "}")
+                    bodyParent.font_size = fontSize
+                const blockNavigation = blockGeoloc.add_vertical_panel(0, Align.Stretch, 0.0)
+                    const navigationTitle = blockNavigation.add_label("Navigation", Align.Center)
+                    navigationTitle.font_size = fontSize
+                    const navigationAltitude = blockNavigation
+                        .add_label("")
+                        .bind(nAltitude, "altitude".pad_right(pRight) + " : {0:" + spacer + "}")
+                    navigationAltitude.font_size = fontSize
+                    const navigationLongitude = blockNavigation
+                        .add_label("")
+                        .bind(nLongitude, "longitude".pad_right(pRight) + " : {0:###,##0.00} °")
+                    navigationLongitude.font_size = fontSize
+                    const navigationLatitude = blockNavigation
+                        .add_label("")
+                        .bind(nLatitude, "latitude".pad_right(pRight) + " : {0:###,##0.00} °")
+                    navigationLatitude.font_size = fontSize
+                    const navigationCompass = blockNavigation
+                        .add_label("")
+                        .bind(nCompass, "compass".pad_right(pRight) + " : {0:###,##0.00} °")
+                    navigationCompass.font_size = fontSize
+                const blockOrbital = blockGeoloc.add_vertical_panel(0, Align.Stretch, 0.0)
+                    const orbitalTitle = blockOrbital.add_label("Orbital", Align.Center)
+                    orbitalTitle.font_size = fontSize
+                    const orbitalPeriapsis = blockOrbital
+                        .add_label("")
+                        .bind(oPeriapsis, "periapsis".pad_right(pRight) + " : {0:" + spacer + "}")
+                    orbitalPeriapsis.font_size = fontSize
+                    const orbitalApoapsis = blockOrbital
+                        .add_label("")
+                        .bind(oApoapsis, "apoapsis".pad_right(pRight) + " : {0:" + spacer + "}")
+                    orbitalApoapsis.font_size = fontSize
+                    const orbitalInclination = blockOrbital
+                        .add_label("")
+                        .bind(oInclination, "inclination".pad_right(pRight) + " : {0:###,##0.00} °")
+                    orbitalInclination.font_size = fontSize
+                    const orbitalLAN = blockOrbital
+                        .add_label("")
+                        .bind(oLongitutdeAscendingNode, "longitude asc. node".pad_right(pRight) + " : {0:###,##0.00} °")
+                    orbitalLAN.font_size = fontSize
+                    const orbitalArgumentPeriapsis = blockOrbital
+                        .add_label("")
+                        .bind(oArgumentOfPeriapsis, "argument periapsis".pad_right(pRight) + " : {0:###,##0.00} °")
+                    orbitalArgumentPeriapsis.font_size = fontSize
+                    const orbitalEccentricity = blockOrbital
+                        .add_label("")
+                        .bind(oEccentricity, "eccentricity".pad_right(pRight) + " : {0:0.00#,###}")
+                    orbitalEccentricity.font_size = fontSize
+                    const orbitalPeriod = blockOrbital
+                        .add_label("")
+                        .bind(oPeriod, "period".pad_right(pRight) + " : {0:###,##0.00} s")
+                    orbitalPeriod.font_size = fontSize
+                    const orbitalCompass = blockOrbital
+                        .add_label("")
+                        .bind(oCompassFromLongitude, "compass at longitude".pad_right(pRight) + " : {0:###,##0.00} °")
+                    orbitalCompass.font_size = fontSize
+                    const trueAnomalyCompass = blockOrbital
+                        .add_label("")
+                        .bind(oTrueAnomaly, "true anomaly".pad_right(pRight) + " : {0:###,##0.00} °")
+                    trueAnomalyCompass.font_size = fontSize
+
+    dialog.compact()
+
+    // update
+    while(!dialog.is_closed) {
+        sName.value = ship.ship.name
+        sStages.value = ship.stages.length
+        sCurrentStage.value = ship.current_stage
+        sFts.value = if(ship.firstThrustStage().defined) ship.firstThrustStage().value.to_string() else "None"
+        sThrust.value = ship.thrust(displayMode.value)
+        sMass.value = ship.mass()
+        sTwr.value = ship.twr(displayMode.value)
+        sIsp.value = ship.isp(displayMode.value)
+        sBurnTime.value = ship.burntime()
+        sDeltaV.value = ship.deltaV()
+
+        const radiusValue = engineeringNotation(ship.ship.main_body.radius, 5) + "m"
+        const depthValue =
+            if(ship.ship.main_body.has_atmosphere)
+                engineeringNotation(ship.ship.main_body.atmosphere_depth, 5) + "m"
+            else
+                "None"
+        const parentValue =
+            if(ship.ship.main_body.parent_body.defined)
+                ship.ship.main_body.parent_body.value.name
+            else
+                "None"
+
+        bName.value = ship.ship.main_body.name
+        bRadius.value = radiusValue
+        bAtmosphereDepth.value = depthValue
+        bGAtSeaLevel.value = g(ship.ship.main_body, 0.0) / g0()
+        bParent.value = parentValue
+
+        const altitudeValue = engineeringNotation(ship.ship.altitude_sealevel, 5) + "m"
+
+        nAltitude.value = altitudeValue
+        nLongitude.value = ship.ship.geo_coordinates.longitude
+        nLatitude.value = ship.ship.geo_coordinates.latitude
+        nCompass.value = compassFromDirection(ship.ship, ship.ship.facing)
+
+        const apoapsisValue =
+            if(ship.ship.orbit.apoapsis.defined)
+                (engineeringNotation(ship.ship.orbit.apoapsis.value, 5) + "m")
+            else
+                "None"
+        const periapsisValue = engineeringNotation(ship.ship.orbit.periapsis, 5) + "m"
+
+        oPeriapsis.value = periapsisValue
+        oApoapsis.value = apoapsisValue
+        oInclination.value = ship.ship.orbit.inclination
+        oLongitutdeAscendingNode.value = ship.ship.orbit.LAN
+        oArgumentOfPeriapsis.value = ship.ship.orbit.argument_of_periapsis
+        oEccentricity.value = ship.ship.orbit.eccentricity
+        oPeriod.value = ship.ship.orbit.period
+        oCompassFromLongitude.value = compassFromOrbit(ship.ship, ship.ship.orbit)
+        oTrueAnomaly.value = ship.ship.orbit.true_anomaly_from_vector(ship.ship.position) * RAD_TO_DEG
+
+        const activeStages = stages
+            .filter(fn(s) -> s.activation_number.value < ship.stages.length)
+        for(s in activeStages) {
+            s.activation_number.value = ship.stages[s.activation_number.value].activation_number
+            s.has_engine.value = ship.stages[s.activation_number.value].has_engine()
+            s.ignited.value = ship.stages[s.activation_number.value].ignited()
+            s.flameout.value = ship.stages[s.activation_number.value].flameout()
+            s.partial_flameout.value = ship.stages[s.activation_number.value].partial_flameout()
+            s.thrust.value = ship.stages[s.activation_number.value].thrust(displayMode.value)
+            s.twr.value = ship.stages[s.activation_number.value].twr(displayMode.value)
+            s.isp.value = ship.stages[s.activation_number.value].isp(displayMode.value)
+            s.burntime.value = ship.stages[s.activation_number.value].burntime()
+            s.deltaV.value = ship.stages[s.activation_number.value].deltaV()
+// test
+            s.mass.value = ship::stage::mass_from(ship.stages[s.activation_number.value], ship::constant::MassState.LocalDry)
+        }
+        // erase dropped stages
+        const droppedStages = stages
+            .filter(fn(s) -> s.activation_number.value >= ship.stages.length && stageLabels[s.activation_number.value]._0_activation_number.text != "")
+        for (s in droppedStages) {
+            stageLabels[s.activation_number.value]._0_activation_number.remove()
+            stageLabels[s.activation_number.value]._1_has_engine.remove()
+            stageLabels[s.activation_number.value]._2_ignited.remove()
+            stageLabels[s.activation_number.value]._3_flameout.remove()
+            stageLabels[s.activation_number.value]._4_partial_flameout.remove()
+            stageLabels[s.activation_number.value]._5_thrust.remove()
+            stageLabels[s.activation_number.value]._6_twr.remove()
+            stageLabels[s.activation_number.value]._7_isp.remove()
+            stageLabels[s.activation_number.value]._8_burntime.remove()
+            stageLabels[s.activation_number.value]._9_deltaV.remove()
+// test
+            stageLabels[s.activation_number.value]._A_mass.remove()
+
+            dialog.compact()
+        }
+
+        // at first update
+        if(updateLabel.text.length > 0)
+            updateLabel.text = ""
+
+        yield()
+    }
+}

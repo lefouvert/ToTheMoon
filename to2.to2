@@ -1,0 +1,41 @@
+use { CONSOLE } from ksp::console
+use { Vessel } from ksp::vessel
+
+
+const toto: string = "0 + 0 = la tête à toto !"
+
+pub fn test_language(vessel: Vessel) -> Unit = {
+    CONSOLE.print_line("vessel.staging.count.to_string() : " + vessel.staging.count.to_string())
+    CONSOLE.print_line("vessel.staging.current.to_string() : " + vessel.staging.current.to_string())
+    CONSOLE.print_line("vessel.staging.ready.to_string() : " + vessel.staging.ready.to_string())
+    CONSOLE.print_line("vessel.staging.total_count.to_string() : " + vessel.staging.total_count.to_string())
+
+    let j = 1.0
+    CONSOLE.print_line("test operator += 5.0 : " + (j += 5.0).to_string())
+    CONSOLE.print_line("test operator -= 2.5 : " + (j -= 2.5).to_string())
+    CONSOLE.print_line("test operator *= 4.0 : " + (j *= 4.0).to_string())
+    CONSOLE.print_line("test operator /= 0.1 : " + (j /= 0.1).to_string())
+    // CONSOLE.print_line("test operator X++ : " + (j++).to_string())
+    // CONSOLE.print_line("test operator X-- : " + (j--).to_string())
+    // CONSOLE.print_line("test operator ++X : " + (++j).to_string())
+    // CONSOLE.print_line("test operator --X : " + (--j).to_string())
+
+    let k = "foobar"
+    CONSOLE.print_line("test operator += \"trololo\" : " + (k += "trololo"))
+    // CONSOLE.print_line("test operator -= \"tro\" : " + (k -= "tro"))
+    // CONSOLE.print_line("test operator *= \"lo\" : " + (k *= "lo"))
+    // CONSOLE.print_line("test operator /= \"ab\" : " + (k /= "ab"))
+
+
+    // const emtpy = [1, 2, 3, 4, 5, 6]
+    //     .filter(fn(i) -> false)[0]
+
+    CONSOLE.print_line(toto)
+
+    const tuple: (int, string) = (5, "cinq")
+    const (numbers, letters) = tuple
+    CONSOLE.print_line("test tuple deconstruct " + numbers.to_string())
+    CONSOLE.print_line("test tuple deconstrcut " + letters)
+
+    CONSOLE.print_line("test to_fixed          " + (12345.437894231).to_fixed(-3))
+}

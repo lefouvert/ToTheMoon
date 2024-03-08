@@ -1,0 +1,51 @@
+use { CONSOLE } from ksp::console
+use { current_time } from ksp::game
+use { Vessel } from ksp::vessel
+
+use { Ship } from ship::ship
+
+use * from ship::debug
+use * from ui::debug
+use { test_language } from to2
+
+/// Entry Point
+pub fn main_editor(vessel : Vessel) -> Unit = {
+    // Clear the console
+    CONSOLE.clear()
+    CONSOLE.print_line((0..80).reduce("", fn(strike, c) -> strike + "-"))
+
+    let startProc = current_time()
+    const ship = Ship(vessel)
+    // test_language(vessel)
+    // stage_debug(vessel)
+    // engineering_debug(vessel)
+    // ship_debug(vessel)
+    // part_debug(vessel)
+    // Stage(vessel, 3).drop()
+    // hms_debug()
+    // dms_debug()
+    // logRandGen_debug()
+    // resources_debug(vessel)
+    CONSOLE.print_line("temp de traitement : "   + (current_time() - startProc).to_string())
+}
+
+/// Entry Point
+pub fn main_ksc(vessel : Vessel) -> Unit = {
+    // Clear the console
+    CONSOLE.clear()
+    CONSOLE.print_line((0..80).reduce("", fn(strike, c) -> strike + "-"))
+
+    let startProc = current_time()
+    const ship = Ship(vessel)
+    // test_language(vessel)
+    // stage_debug(vessel)
+    // engineering_debug(vessel)
+    // ship_debug(vessel)
+    // part_debug(vessel)
+    // Stage(vessel, 3).drop()
+    // hms_debug()
+    // dms_debug()
+    // logRandGen_debug()
+    // resources_debug(vessel)
+    CONSOLE.print_line("temp de traitement : "   + (current_time() - startProc).to_string())
+}

@@ -1,0 +1,22 @@
+
+pub type AscentProfileConst = int
+
+pub const AscentProfile: (Logarithmic: AscentProfileConst, Trigonometric: AscentProfileConst) = (
+    Logarithmic: 2**0,
+    Trigonometric: 2**1
+)
+
+pub type ApsisConst = int
+
+pub const Apsis: (Periapsis: ApsisConst, Apoapsis: ApsisConst) = (
+    Periapsis: 0,
+    Apoapsis: 1
+)
+
+pub type ApsisModificationConst = float
+
+pub const ApsisModification: (Raise: ApsisModificationConst, Decrease: ApsisModificationConst, Cheaper: ApsisModificationConst) = (
+    Raise: 0,
+    Decrease: 180,
+    Cheaper: -360
+)

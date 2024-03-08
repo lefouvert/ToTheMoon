@@ -1,0 +1,97 @@
+use { Vessel, AutopilotMode } from ksp::vessel
+use { Orbit } from ksp::orbit
+// use { Direction, angle_delta } from ksp::math
+use { Direction } from ksp::math
+use { yield } from ksp::game
+use { clamp, clamp_degrees180, cos_deg, sin_deg, acos_deg, atan2_deg, tan_deg, log, max, abs } from core::math
+use { CONSOLE } from ksp::console
+
+use { ThrustSituation } from ship::constant
+use { AscentProfile, AscentProfileConst } from maneuver::constant
+use { Circle, Sign } from math::constant
+use { Stage } from ship::stage
+use { Ship } from ship::ship
+use { Pid } from math::tool
+use { visViva, semiMajorAxis } from body::orbit
+use { clear_altitude, atmosphere_depth } from body::atmosphere
+use { ascent_angle, latitude_from_angle, deviation, compassFromDirection, compassFromOrbit } from ship::navigation
+use { engineeringNotation } from ui::unit
+
+// const maxT:Cell<float> = Cell(0.0) // TODO delete
+// const maxQ:Cell<float> = Cell(0.0) // TODO delete
+
+sync fn direction_manager(ship: Ship, obt: Orbit, profile: AscentProfileConst) -> Direction = {
+    const vessel = ship.ship
+
+    const azimuthTarget = compassFromOrbit(vessel, obt)
+
+    const actualHorizontalSpeed = vessel.up.exclude_from(vessel.orbital_velocity).magnitude
+    const targetHorizontalSpeed = visViva(vessel.main_body, vessel.altitude_sealevel, semiMajorAxis(vessel.main_body, vessel.orbit.periapsis, obt.periapsis))// wrong but operational
+    const headway = clamp(actualHorizontalSpeed / targetHorizontalSpeed, 0, 1)
+
+    // inclination better than azimuth because of true anomaly difference
+    const inclinationDifference =
+        if (sin_deg(obt.inclination) < abs(sin_deg(vessel.geo_coordinates.latitude)))
+            Circle.None
+        else
+            clamp_degrees180(obt.inclination - vessel.orbit.inclination)
+            // angle_delta(obt.inclination, vessel.orbit.inclination)
+
+    const uTurnSoftener = clamp(abs(sin_deg(inclinationDifference)), cos_deg(inclinationDifference), 1)
+    const azimuthCorrection = (Circle.Semi * headway) * (-inclinationDifference * uTurnSoftener / (Circle.Quarter / 2)) // Circle.Semi and (Circle.Quarter / 2) are arbitrary to pump up azimuthCorrection
+
+// if(maxT.value < vessel.total_torque.magnitude)
+//     maxT.value = vessel.total_torque.magnitude
+// if(maxQ.value < vessel.dynamic_pressure_kpa)
+//     maxQ.value = vessel.dynamic_pressure_kpa
+// ksp::console::CONSOLE.print_at(14, 50, "torque".pad_right(7) + " : " + vessel.total_torque.magnitude.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(14, 70, "maxT".pad_right(7) + " : " + maxT.value.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(15, 50, "staPres".pad_right(7) + " : " + vessel.static_pressure_kpa.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(15, 50, "dynPres".pad_right(7) + " : " + vessel.dynamic_pressure_kpa.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(15, 70, "maxQ".pad_right(7) + " : " + maxQ.value.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(16, 50, "incdiff".pad_right(7) + " : " + inclinationDifference.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(16, 70, "azcor".pad_right(7) + " : " + azimuthCorrection.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(17, 70, "utS".pad_right(7) + " : " + uTurnSoftener.to_fixed(2).pad_left(6))
+
+    const azimuth = azimuthTarget + azimuthCorrection
+    const elevation = ascent_angle(ship.apoapsis(), obt.periapsis, profile)
+    return vessel.heading_direction(azimuth, elevation, 0.0)
+}
+
+sync fn controleThrottle(ship: Ship, obt: Orbit, profile: AscentProfileConst) -> float = {
+    const maxAllowedThrottle = [ship.throttle_temperature(), ship.throttle_q(), ship.throttle_altitude(ship.apoapsis())]
+        .sort()[0]
+    const errorModeratorThrottle = ship.throttle_direction(direction_manager(ship, obt, profile), 1.0, 1.0)
+    return maxAllowedThrottle * errorModeratorThrottle
+}
+
+pub fn ascent (ship : Ship, obt: Orbit, profile: AscentProfileConst = AscentProfile.Trigonometric) -> Result<Unit, string> = {
+    const vessel = ship.ship
+    ship.set_throttle_altitude(obt.periapsis, 5)
+    const tmanager = vessel.manage_throttle(fn(whatever) -> controleThrottle(ship, obt, profile))
+
+    while(ship.apoapsis() < obt.periapsis || ship.altitude() < atmosphere_depth(vessel.main_body)) {
+        yield()
+        ship.check_staging()
+        ship.check_jettison()
+        ship.check_deploy()
+        ship.check_science()
+        // Enable SAS
+        if(vessel.autopilot.enabled != true || vessel.autopilot.mode != AutopilotMode.Autopilot) {
+            vessel.autopilot.enabled = true
+            vessel.autopilot.mode = AutopilotMode.Autopilot
+        }
+        vessel.autopilot.target_orientation = direction_manager(ship, obt, profile).vector
+
+// ksp::debug::DEBUG.add_vector(fn() -> vessel.global_position, fn() -> vessel.total_torque.to_global(vessel.body_frame), ksp::console::RED, "torque", 1)
+
+        // body::debug::orbit_debug(vessel, obt)
+
+        if (ship.deltaV() < 1)
+            return Err("Not enought fuel to reach a " + engineeringNotation(obt.periapsis) + "m. suborbital flight above " + obt.reference_body.name)
+
+    }
+    tmanager.release()
+// TODO write deploy
+    ship.print_status()
+}

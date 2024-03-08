@@ -1,0 +1,25 @@
+use { Vec3 } from ksp::math
+
+pub struct Torsor(dot: Vec3, force: Vec3, momentum: Vec3) {
+    dot: Vec3 = dot
+    force: Vec3 = force
+    momentum: Vec3 = momentum
+}
+
+impl Torsor {
+    fn add(self, torsor: Torsor) -> Torsor = {
+        const movedTorsor = self.move_dot(self.dot, torsor)
+        return Torsor(self.dot, self.force + movedTorsor.force, self.momentum + movedTorsor.momentum)
+    }
+
+    // Varignon's theorem
+    fn move_dot(self, newDot: Vec3, torsor: Torsor) -> Torsor = {
+        const newDot_dot_Vec = torsor.dot - newDot
+        const newMomentum = torsor.momentum + newDot_dot_Vec.cross(torsor.force)
+        return Torsor(newDot, torsor.force, newMomentum)
+    }
+
+    fn to_string(self) -> string = {
+        return "[" + self.dot.x.to_fixed(5) + "," + self.dot.y.to_fixed(5) + " ," + self.dot.z.to_fixed(5) + " ][" + self.force.x.to_fixed(5) + "," + self.force.y.to_fixed(5) + " ," + self.force.z.to_fixed(5) + " ][" + self.momentum.x.to_fixed(5) + "," + self.momentum.y.to_fixed(5) + " ," + self.momentum.z.to_fixed(5) + " ]"
+    }
+}

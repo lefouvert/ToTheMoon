@@ -1,0 +1,23 @@
+use { Vessel } from ksp::vessel
+use { Orbit } from ksp::orbit
+use { CONSOLE } from ksp::console
+
+use { orbitalToGeoLongitude } from body::orbit
+
+pub fn orbit_debug(vessel: Vessel, obt: Orbit) -> Unit = {
+        CONSOLE.print_at(1, 50, "ship")
+        CONSOLE.print_at(2, 50, "apo".pad_right(7) + " : " + vessel.orbit.apoapsis.value.to_fixed(0).pad_left(6))
+        CONSOLE.print_at(3, 50, "peri".pad_right(7) + " : " + vessel.orbit.periapsis.to_fixed(0).pad_left(6))
+        CONSOLE.print_at(4, 50, "inc".pad_right(7) + " : " + vessel.orbit.inclination.to_fixed(2).pad_left(6))
+        CONSOLE.print_at(5, 50, "lan".pad_right(7) + " : " + vessel.orbit.LAN.to_fixed(2).pad_left(6))
+        CONSOLE.print_at(6, 50, "geo lan".pad_right(7) + " : " + orbitalToGeoLongitude(vessel.main_body, vessel.orbit.LAN).to_fixed(2).pad_left(6))
+        CONSOLE.print_at(7, 50, "aop".pad_right(7) + " : " + vessel.orbit.argument_of_periapsis.to_fixed(2).pad_left(6))
+
+        CONSOLE.print_at(1, 70, "tgt")
+        CONSOLE.print_at(2, 70, "apo".pad_right(7) + " : " + obt.apoapsis.value.to_fixed(0).pad_left(6))
+        CONSOLE.print_at(3, 70, "peri".pad_right(7) + " : " + obt.periapsis.to_fixed(0).pad_left(6))
+        CONSOLE.print_at(4, 70, "inc".pad_right(7) + " : " + obt.inclination.to_fixed(2).pad_left(6))
+        CONSOLE.print_at(5, 70, "lan".pad_right(7) + " : " + obt.LAN.to_fixed(2).pad_left(6))
+        CONSOLE.print_at(6, 70, "geo lan".pad_right(7) + " : " + orbitalToGeoLongitude(obt.reference_body, obt.LAN).to_fixed(2).pad_left(6))
+        CONSOLE.print_at(7, 70, "aop".pad_right(7) + " : " + obt.argument_of_periapsis.to_fixed(2).pad_left(6))
+}

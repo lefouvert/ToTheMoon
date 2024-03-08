@@ -1,0 +1,132 @@
+use { current_time } from ksp::game
+use { clamp, asin_deg, acos_deg, round, sqrt, atan2_deg, cos_deg, sin_deg } from core::math
+use { Vec3, vec3, GlobalVector, TransformFrame } from ksp::math
+
+use { Circle } from math::constant
+
+// headway between 0 to 2// headway between 0 to 2
+pub sync fn earlyWeightConvex(headway: float) -> float = {              // 1|
+    return asin_deg(1.0 - clamp(headway, 0.0, 2.0)) / Circle.Quarter    //   \
+}                                                                       // 0   _1
+
+// headway between -1 to 1
+pub sync fn earlyWeightConcave(headway: float) -> float = {             // 1 _
+    return acos_deg(clamp(headway, -1.0, 1.0)) / Circle.Quarter         //    \
+}                                                                       // 0   |1
+
+// headway between -1 to 1
+pub sync fn lateWeightConvex(headway: float) -> float = {               // 1    |
+    return asin_deg(clamp(headway, -1.0, 1.0)) / Circle.Quarter         //     /
+}                                                                       // 0 _  1
+
+// headway between 0 to 2
+pub sync fn lateWeightConcave(headway: float) -> float = {              // 1   _
+    return acos_deg(1.0 - clamp(headway, 0.0, 2.0)) / Circle.Quarter    //   /
+}                                                                       // 0|   1
+
+pub sync fn round_at(value: float, decimals: int) -> float = {
+    return (round(value * (10**decimals)) / (10**decimals))
+}
+
+pub sync fn cartesian_to_polar(v: Vec3) -> Vec3 = { // norme ISO/CEI 80000-2
+    // rho: magnitude, theta: colatitude, phi: longitude
+    const rho = sqrt((v.x**2) + (v.y**2) + (v.z**2))
+    const theta = acos_deg(v.z / rho)
+    const phi = atan2_deg(v.y, v.x)
+    return vec3(rho, theta, phi)
+}
+
+pub sync fn polar_to_cartesian(p: Vec3) -> Vec3 = { // norme ISO/CEI 80000-2
+    // p(x, y, z) = (rho, theta, phi)
+    const x = p.x * sin_deg(p.y) * cos_deg(p.z)
+    const y = p.x * sin_deg(p.y) * sin_deg(p.z)
+    const z = p.x * cos_deg(p.y)
+    return vec3(x, y, z)
+}
+
+pub sync fn almost_equal_global(vectorA: GlobalVector, vectorB: GlobalVector, frame: TransformFrame, accuracy: int) -> bool = {
+    return almost_equal(vectorA.to_local(frame), vectorB.to_local(frame), accuracy)
+}
+
+pub sync fn almost_equal(vectorA: Vec3, vectorB: Vec3, accuracy: int) -> bool = {
+    return (round_at(vectorA.x, accuracy) == round_at(vectorB.x, accuracy)
+        && round_at(vectorA.y, accuracy) == round_at(vectorB.y, accuracy)
+        && round_at(vectorA.z, accuracy) == round_at(vectorB.z, accuracy))
+}
+
+pub struct Derivative(minimumElapsedTime: float = 0.01) {
+    minDt: float = minimumElapsedTime
+    lastMeasure: float = 0
+    lastTime: float = 0
+    lastResult: float = 0
+}
+
+impl Derivative {
+    sync fn compute(self, measure:float) -> float = {
+        const t = current_time()
+        const dT = t - self.lastTime
+        if(dT > self.minDt) {
+            const dM = measure - self.lastMeasure
+            self.lastMeasure = measure
+            self.lastTime = t
+            self.lastResult = dM/dT
+        }
+        return self.lastResult
+    }
+}
+
+pub struct Pid(Pgain: float, Igain: float, Dgain: float, validityCriterion: float = 0.0, minOutput: float = 0.0, maxOutput: float = 1.0, minTimeSpan: float = 1e-2) {
+    Pgain: float = Pgain
+    Igain: float = Igain
+    Dgain: float = Dgain
+    minTimeSpan: float = minTimeSpan
+    lastP: float = 0.0
+    lastI: float = 0.0
+    lastD: float = 0.0
+    lastT: float = current_time()
+    t0: float = current_time()
+    minOutput: float = minOutput
+    maxOutput: float = maxOutput
+    lastOutput: float = minOutput
+    validityCriterion: float = validityCriterion
+}
+
+impl Pid {
+    sync fn is_valid(self, criterion: float) -> bool = {
+        return (self.validityCriterion == criterion)
+    }
+
+    sync fn is_siphon(self, minCycle: int = 10) -> bool = {
+        return ((self.lastT - self.t0) > (self.minTimeSpan * minCycle))
+    }
+
+    sync fn compute(self, measure: float, aim: float) -> float = {
+        const t = current_time()
+        const dT = t - self.lastT
+// ksp::console::CONSOLE.print_line(t.to_fixed(2) + " pid compute")
+        if(dT > self.minTimeSpan) {
+// ksp::console::CONSOLE.print_line(t.to_fixed(2) + " pid timespan ok")
+            const P = aim - measure
+            let I = self.lastI + (dT * (P + self.lastP) / 2)
+            const D = (P - self.lastP) / dT
+
+            //prevent I windup
+            I = clamp(I, self.minOutput / self.Igain, self.maxOutput / self.Igain)
+
+            const output = clamp((P * self.Pgain + I * self.Igain + D * self.Dgain), self.minOutput, self.maxOutput)
+            // const output = clamp((P * self.Pgain + I * self.Igain + D * self.Dgain), 0.0, 1.0)
+// ksp::console::CONSOLE.print_line(t.to_fixed(2) + " pid P:" + P.to_fixed(2) + " I:" + I.to_fixed(2) + " D:" + D.to_fixed(2))
+// ksp::console::CONSOLE.print_line(t.to_fixed(2) + " pid Pg:" + (P *self.Pgain).to_fixed(2) + " Ig:" + (I *self.Igain).to_fixed(2) + " Dg:" + (D *self.Dgain).to_fixed(2))
+// ksp::console::CONSOLE.print_line(t.to_fixed(2) + " pid gains Pg:" + self.Pgain.to_fixed(2) + " Ig:" + self.Igain.to_fixed(2) + " Dg:" + self.Dgain.to_fixed(2))
+// ksp::console::CONSOLE.print_line(t.to_fixed(2) + " pid output:" + output.to_fixed(2))
+            //register
+            self.lastP = P
+            self.lastI = I
+            self.lastD = D
+            self.lastT = t
+            self.lastOutput = output
+        }
+
+        return self.lastOutput
+    }
+}

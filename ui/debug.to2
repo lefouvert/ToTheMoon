@@ -1,0 +1,52 @@
+use { CONSOLE } from ksp::console
+use { Vessel } from ksp::vessel
+use { Random, random_from_seed, log10, truncate} from core::math
+use { sleep, current_time } from ksp::game
+
+use { Stage } from ship::stage
+use { ThrustSituation } from ship::constant
+use { engineeringNotation, hms, dms } from ui::unit
+
+// pub fn engineering_debug(vessel : Vessel) -> Unit = {
+//     for(i in 0..vessel.staging.total_count){
+//             const stage = Stage(vessel, i)
+//             CONSOLE.print_line("=========== STAGE " + i.to_string() + " ===========")
+//             CONSOLE.print_line("stage activation number : " + stage.activation_number.to_string())
+//             CONSOLE.print_line("stage hasEngine         : " + stage.has_engine().to_string())
+//             CONSOLE.print_line("stage flameout          : " + stage.flameout().to_string())
+//             CONSOLE.print_line("stage partial flameout  : " + stage.partial_flameout().to_string())
+//             CONSOLE.print_line("stage thrust default    : " + engineeringNotation(stage.thrust(), 3) + "N")
+//             CONSOLE.print_line("stage thrust param      : " + engineeringNotation(stage.thrust(ThrustSituation.Max_Atm), 3) + "N")
+//             CONSOLE.print_line("stage twr default       : " + engineeringNotation(stage.twr(), 3))
+//             CONSOLE.print_line("stage twr current       : " + engineeringNotation(stage.twr(ThrustSituation.Current), 3))
+//             CONSOLE.print_line("stage twr current as on : " + engineeringNotation(stage.twr(ThrustSituation.CurrentAsOn), 3))
+//             CONSOLE.print_line("stage isp               : " + engineeringNotation(stage.isp(), 3) + "s")
+//             CONSOLE.print_line("stage dV                : " + engineeringNotation(stage.deltaV(), 3) + "m/s")
+//             CONSOLE.print_line("stage burntime          : " + engineeringNotation(stage.burntime(), 3) + "s")
+//     }
+// }
+
+// 11147.56382901 Expect 3:5:47.56 s
+pub fn hms_debug() -> Unit = {
+    let stamp = hms(11147.56382901)
+    CONSOLE.print_line("hms 11147.556382901     : " + (if (stamp.positive) "+" else "-") + stamp.hour.to_string() + ":" + stamp.minute.to_string() + ":" + stamp.second.to_fixed(2))
+    stamp = hms(-11147.56382901)
+    CONSOLE.print_line("hms -11147.556382901    : " + (if (stamp.positive) "+" else "-") + stamp.hour.to_string() + ":" + stamp.minute.to_string() + ":" + stamp.second.to_fixed(2))
+}
+
+// 11147.56382901 Expect 30°33"49.78'
+pub fn dms_debug() -> Unit = {
+    let subDegree = dms(11147.56382901)
+    CONSOLE.print_line("dms 11147.556382901     : " + subDegree.degree.to_string() + "°" + subDegree.minute.to_string() + "\"" + subDegree.second.to_fixed(2) + "'")
+    subDegree = dms(-11147.56382901)
+    CONSOLE.print_line("dms 11147.556382901     : " + subDegree.degree.to_string() + "°" + subDegree.minute.to_string() + "\"" + subDegree.second.to_fixed(2) + "'")
+}
+
+pub fn logRandGen_debug() -> Unit = {
+    const randGen = random_from_seed((current_time() * 1.0e12).to_int)
+    const significants = (1..10)
+    const scales = (-99..160)
+        .map(fn(s) -> 10.0**(truncate(s/10) + randGen.next_float()))
+    for(i in scales)
+        CONSOLE.print_line(engineeringNotation(i, 5) + " : " + i.to_string())
+}
