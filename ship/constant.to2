@@ -67,16 +67,3 @@ pub const Throttle: (Max: ThrottleConst, Min: ThrottleConst) = (
     Max: 1.0,
     Min: 0.0
 )
-
-// pub const SolarPanel: (Name: string, MaxFlow: float)[] = [
-//     (Name: "solararray_0v_flat", MaxFlow: 0.145209029316902), // OX-STAT
-//     (Name: "solararray_1v_1x6", MaxFlow: 0.968068957328796), // OX-4L
-//     (Name: "solararray_1v_3x2", MaxFlow: 0.968069076538086), // OX-4W
-//     (Name: "solararray_1v_shielded_1x6", MaxFlow: 0.968068957328796), // SP-4L
-//     (Name: "solararray_1v_shielded_3x2", MaxFlow: 0.968069076538086), // SP-4W
-//     (Name: "solararray_1v_flat", MaxFlow: 1.21007525920868), // OX-STAT-XL
-//     (Name: "solararray_1v_circular", MaxFlow: 3.3882417678833), // OX-10C
-//     (Name: "solararray_1v_circular_shielded", MaxFlow: 3.3882417678833), // SP-10C
-//     (Name: "solararray_2v_accordion", MaxFlow: 11.6168279647827), // SP-XL 'Gigantor'
-//     (Name: "solararray_3v_large", MaxFlow: 33.8824119567871), // SP-XXL 'Colosse'
-// ]

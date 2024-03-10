@@ -8,18 +8,16 @@ use { Vessel, Part } from ksp::vessel
 
 use { OneAtmPressure, MinAltitude } from body::constant
 
-pub sync fn clear_altitude(body: Body) -> float = {
-    return MinAltitude + atmosphere_depth(body)
-}
+pub sync fn clear_altitude(body: Body) -> float =
+    MinAltitude + atmosphere_depth(body)
 
-pub sync fn atmosphere_depth(body: Body) -> float = {
-    return if(body.has_atmosphere) body.atmosphere_depth else 0.0
-}
+pub sync fn atmosphere_depth(body: Body) -> float =
+    if(body.has_atmosphere) body.atmosphere_depth else 0.0
 
 pub sync fn atm_influence(vessel : Vessel, engine : Part) -> float = {
     const thrustVac = engine.engine_module.value.max_thrust_output_vac
     const thrustAtm = engine.engine_module.value.max_thrust_output_atm
-    return thrustVac + (thrustAtm - thrustVac) * (vessel.static_pressure_kpa / OneAtmPressure)
+    thrustVac + (thrustAtm - thrustVac) * (vessel.static_pressure_kpa / OneAtmPressure)
 }
 
 // sync fn atm_influence(body: ksp::orbit::Body, altitudeSealevel: float, thrustAtm: float, thrustVac: float) -> float = {

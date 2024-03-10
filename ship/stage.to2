@@ -30,43 +30,29 @@ pub struct Stage(vessel : Vessel, stage: int) {
 
 impl Stage {
 
-    sync fn has_engine(self) -> bool = {
-        return self.engines.activation.length > 0
-    }
+    sync fn has_engine(self) -> bool =
+        self.engines.activation.length > 0
 
-    sync fn ignited(self) -> bool = {
-        // return self.has_engine()
-        //     && (!self.engines.activation
-        //         .exists(fn(p) -> !p.engine_module.value.has_ignited))
-        return self.has_engine()
-            && (!self.engines.activation
-                .exists(fn(p) -> !p.engine_module.value.is_staged))
-    }
+    sync fn ignited(self) -> bool =
+        self.has_engine() && (!self.engines.activation.exists(fn(p) -> !p.engine_module.value.is_staged))
 
-    sync fn partial_flameout(self) -> bool = {
-        return self.engines.activation
-            .exists(fn(p) -> p.engine_module.value.has_ignited && p.engine_module.value.is_flameout)
-    }
+    sync fn partial_flameout(self) -> bool =
+        self.engines.activation.exists(fn(p) -> p.engine_module.value.has_ignited && p.engine_module.value.is_flameout)
 
-    sync fn flameout(self) -> bool = {
-        return !self.engines.activation
-            .exists(fn(p) -> !(p.engine_module.value.has_ignited && p.engine_module.value.is_flameout))
-    }
+    sync fn flameout(self) -> bool =
+        !self.engines.activation.exists(fn(p) -> !(p.engine_module.value.has_ignited && p.engine_module.value.is_flameout))
 
-    sync fn empty(self) -> bool = {
-        return (self.engines.activation.length > self.engines.decouple.length
-            && self.partial_flameout())
-    }
+    sync fn empty(self) -> bool =
+        (self.engines.activation.length > self.engines.decouple.length && self.partial_flameout())
 
-    sync fn thrust(self, context: ThrustSituationConst = ThrustSituation.Current) -> float = {
-        const vessel = self.ship
-        return self.engines.activation
+    sync fn thrust(self, context: ThrustSituationConst = ThrustSituation.Current) -> float =
+        self.engines.activation
             .reduce(0.0, fn(sum, p) -> {
                 if (context == ThrustSituation.Current)
                     sum + p.engine_module.value.current_thrust
                 else if (context == ThrustSituation.CurrentAsOn
                     || (context == ThrustSituation.Min && p.engine_module.value.current_engine_mode.throttle_locked))
-                    sum + atm_influence(vessel, p)
+                    sum + atm_influence(self.ship, p)
                 else if (context == ThrustSituation.Max_Vac)
                     sum + p.engine_module.value.max_thrust_output_vac
                 else if (context == ThrustSituation.Max_Atm)
@@ -76,13 +62,11 @@ impl Stage {
                 else
                     sum
             })
-    }
+
 
 
     sync fn isp(self, context: ThrustSituationConst = ThrustSituation.CurrentAsOn) -> float = {
-        // TODO replace g0
         const body = self.ship.main_body
-        // const g0 = body.grav_parameter/(body.radius**2)
         const fuelFlowSum = self.engines.decouple
             .map(fn(p) -> p.engine_module.value.max_fuel_flow * p.engine_module.value.max_thrust_output_vac / p.engine_module.value.current_engine_mode.max_thrust) // (fuel Flow * limiteur de poussée)
             .reduce(0.0, fn(sum, f) -> sum + f)
@@ -90,7 +74,7 @@ impl Stage {
 
         if (fuelFlowSum == 0.0)
             return 0.0
-        return thrustSum / (fuelFlowSum * g0())
+        thrustSum / (fuelFlowSum * g0())
     }
 
     sync fn burntime(self) -> float = {
@@ -103,21 +87,19 @@ impl Stage {
             .reduce(0.0, fn(sum, f) -> sum + f)
         if (fuelFlowSum == 0)
             return 0.0
-        return (initialMass - dryMass) / fuelFlowSum
+        (initialMass - dryMass) / fuelFlowSum
     }
 
     sync fn deltaV(self, context: ThrustSituationConst = ThrustSituation.Max_Vac) -> float = {
         if(!self.is_behaviorchange_stage)
             return 0.0
-        // TODO replace g0
         const body = self.ship.main_body
-        // const g0 = body.grav_parameter/(body.radius**2)
         const isp = self.isp(context)
         const initialMass = mass_from(self, MassState.Total)
         const dryMass = mass_from(self, MassState.LocalDry)
         if(initialMass < dryMass || dryMass <= 0.0)
             return 0.0
-        return isp * g0() * log(initialMass / dryMass)
+        isp * g0() * log(initialMass / dryMass)
     }
 
 
@@ -125,20 +107,12 @@ impl Stage {
         const thrust = self.thrust(thrustContext)
         if (thrust == 0.0)
             return 0.0
-        const mass = mass_from(self, massContext)
-        // if (mass == 0.0){
-        //     ksp::console::CONSOLE.print_line("MASS NULL !!!")
 
-        //     return 0.0
-        // }
+        const mass = mass_from(self, massContext)
         if (mass == 0.0)
             return 0.0
 
-        // TODO replace g
-        const body = self.ship.main_body
-        // const g = body.grav_parameter/((body.radius + self.ship.altitude_sealevel)**2)
-
-        return thrust / (mass * g(body, self.ship.altitude_sealevel))
+        thrust / (mass * g(self.ship.main_body, self.ship.altitude_sealevel))
     }
 
 
@@ -148,21 +122,21 @@ impl Stage {
                 .filter(fn(pa) -> pa.activation_stage == self.activation_number && !pa.is_launch_clamp)
                 .exists(fn(pa) -> pa.decouple_stage == pd.decouple_stage && pd.is_decoupler))
             .sort_by(fn(pd) -> pd.decouple_stage)
-        return if (decouplers.length > 0) decouplers[decouplers.length - 1].decoupler.value.decouple() else false
+        if (decouplers.length > 0) decouplers[decouplers.length - 1].decoupler.value.decouple() else false
     }
 }
 
 // only reliable on stages with engines.
 // give the mass of the stage and uppers stages
-pub sync fn mass_from(stage: Stage, context : MassStateConst = MassState.Total) -> float = {
+
 // TODO check mass_from and consequently isp & Dv
 // considered_engines stage.engines.decouple.exists(fn(e) -> p.decouple_stage <= e.decouple_stage) && !p.is_launch_clamp)
 // if (considered_engines.length == 0)
 //  stage.engines.activation.exists(fn(e) -> p.decouple_stage <= e.decouple_stage) && !p.is_launch_clamp)
 
-    return stage.ship.parts
-        // .filter(fn(p) -> p.decouple_stage <= stage.engines.decouple[0].decouple_stage && !p.is_launch_clamp)
-        // .filter(fn(p) -> stage.engines.decouple.exists(fn(e) -> p.decouple_stage <= e.decouple_stage) && !p.is_launch_clamp)
+// TODO for mixed fuel, consider ratio between fuel
+pub sync fn mass_from(stage: Stage, context : MassStateConst = MassState.Total) -> float =
+    stage.ship.parts
         .filter(fn(p) -> stage.engines.activation.exists(fn(e) -> p.decouple_stage <= e.decouple_stage) && !p.is_launch_clamp)
         .reduce(0.0, fn(mass, p) -> {
             if (context == MassState.TotalDry
@@ -179,4 +153,3 @@ pub sync fn mass_from(stage: Stage, context : MassStateConst = MassState.Total) 
             else
                 mass + p.total_mass
         })
-}

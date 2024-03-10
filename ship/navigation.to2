@@ -17,31 +17,31 @@ pub sync fn deviation (aimDir: Direction, actualDir : Direction) -> float = {
 pub sync fn ascent_angle(currentApoapsis: float, aimedAlt:float, profile: AscentProfileConst) -> float = {
     if(profile == AscentProfile.Trigonometric)
         return acos_deg(clamp((currentApoapsis/ aimedAlt) - 1, -1, 1)) - Circle.Quarter
-    return Circle.Quarter - max(0.0, log(currentApoapsis * (Circle.Quarter / aimedAlt) + 1)) * (Circle.Quarter / log(Circle.Quarter))
+    Circle.Quarter - max(0.0, log(currentApoapsis * (Circle.Quarter / aimedAlt) + 1)) * (Circle.Quarter / log(Circle.Quarter))
     // TODO gravity turn
 }
 
-pub sync fn latitude_from_angle(angle: float) -> float = {
-    return asin_deg(sin_deg(angle))
-}
+pub sync fn latitude_from_angle(angle: float) -> float =
+    asin_deg(sin_deg(angle))
+
 
 pub sync fn compassFromOrbit(ship: Vessel, orbit: Orbit) -> float = { // reliable from stabilized LAN
     const sign = if (orbit.inclination > Circle.Quarter) Sign.Negative else Sign.Positive
-    return clamp_degrees360(sign * acos_deg(sin_deg(orbit.inclination) * cos_deg(ship.geo_coordinates.longitude - orbit.LAN)))
+    clamp_degrees360(sign * acos_deg(sin_deg(orbit.inclination) * cos_deg(ship.geo_coordinates.longitude - orbit.LAN)))
 }
 
 pub sync fn compassFromDirection(vessel: Vessel, direction: Direction) -> float = {
     const x = vessel.north.dot(direction.vector)
     const y = vessel.east.dot(direction.vector)
     const compass = atan2_deg(y, x)
-    return clamp_degrees360(compass)
+    clamp_degrees360(compass)
 }
 
 pub sync fn expected_LAN(coord: GeoCoordinates, inclination: float) -> Option<float> = {
     if(abs(coord.latitude) > latitude_from_angle(inclination))
         return None()
     const longitudeShift = asin_deg(sin_deg(coord.latitude) / sin_deg(latitude_from_angle(inclination)))
-    return clamp_degrees360(coord.longitude - longitudeShift)
+    Some(clamp_degrees360(coord.longitude - longitudeShift))
 }
 
 pub sync fn burntime(ship: Ship, deltaV: float) -> float = {
@@ -59,8 +59,9 @@ pub sync fn burntime(ship: Ship, deltaV: float) -> float = {
         deltaVLeft -= dVBurn
         // if (deltaVLeft > 0.0) time += 1.0 // relative to time to stage
     }
-    return time
+    time
 }
+
 // pub sync fn expected_longitude(latitude: float, orbit: Orbit) -> Option<(ascendingNodeSide: float, descendingNodeSide: float)> = {
 //     if(abs(latitude) > latitude_from_angle(orbit.inclination))
 //         return None()

@@ -25,27 +25,26 @@ pub fn engineeringNotation(value: float, significantDigit: int = 3) -> string = 
     let result = round(value / 10.0**(shiftLog - shiftSig)) * 10.0**(-shiftSig) // Erase unsignificants digits
     result = result * 10.0**((3 + shiftLog % 3) % 3) // Shift significants digits
 
-    return result.to_fixed(shiftSig - log10(abs(result)).to_int) + (if(pu.length > 0) " " + pu[Array.First] else " ")
+    result.to_fixed(shiftSig - log10(abs(result)).to_int) + (if(pu.length > 0) " " + pu[Array.First] else " ")
 }
 
 // pub fn ydhms(timespan: float) -> (year: float, day: float, hour: float, minute: float, second: float) = {
 //     return (year: 0.0, day: 0.0, hour: 0.0, minute: 0.0, second: 0.0)
 // }
 
-pub fn hms(timespan: float) -> (positive: bool, hour: int, minute: int, second: float) = {
-    // floor((t%B^n)÷B^(n-1)) where B is base and n is base shift
-    return (
+// floor((t%B^n)÷B^(n-1)) where B is base and n is base shift
+pub fn hms(timespan: float) -> (positive: bool, hour: int, minute: int, second: float) = (
         positive: timespan >= 0,
         hour: abs(truncate(timespan / Sexagesimal**2)).to_int,
         minute: abs(truncate((timespan % Sexagesimal**2) / Sexagesimal)).to_int,
         second: abs(timespan % Sexagesimal)
-    )
-}
+)
+
 
 pub fn dms(angle: float) -> (degree: int, minute: int, second: float) = {
     // floor((t%B^n)÷B^(n-1)) where B is base and n is base shift
     const angle360 = clamp_degrees360(angle)
-    return (
+    (
         degree: truncate(angle360).to_int,
         minute: truncate((angle360 % Sexagesimal**0) / Sexagesimal**-1).to_int,
         second: (angle360 % Sexagesimal**-1) / Sexagesimal**-2

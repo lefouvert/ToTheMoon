@@ -4,7 +4,7 @@ use { wait_until } from ksp::game
 use { Array } from math::constant
 
 // default as undefined make the dialog box not able to be skipped
-pub fn ask(title: string, message: string, default: Option<bool> = Some(false)) -> bool = {
+pub fn ask(title: string, message: string, default: Option<bool> = Some(false)) -> bool = { // TODO now you know, rewrite it
     const answer: Cell<Option<bool>> = Cell(None())
     const fontSize = 16
 
@@ -43,5 +43,5 @@ pub fn ask(title: string, message: string, default: Option<bool> = Some(false)) 
         }
 
     dialog.close()
-    return answer.value.value
+    answer.value.value
 }

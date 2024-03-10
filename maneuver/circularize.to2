@@ -7,7 +7,7 @@ use { Apsis, ApsisConst, ApsisModification, ApsisModificationConst } from maneuv
 use { Throttle, ThrustSituation } from ship::constant
 use { Circle, Sexagesimal } from math::constant
 use { Ship } from ship::ship
-use { visViva, semiMajorAxis, semiMinorAxis, param_deltaV, eta_trueAnomaly, prograde_elevation, radius_true_anomaly } from body::orbit
+use { visViva, semi_major_axis, semi_minor_axis, param_deltaV, eta_trueAnomaly, prograde_elevation, radius_true_anomaly } from body::orbit
 use { atmosphere_depth } from body::atmosphere
 use { burntime, compassFromOrbit, compassFromDirection } from ship::navigation
 use { engineeringNotation } from ui::unit
@@ -38,14 +38,14 @@ pub fn circularize(ship: Ship, way: ApsisModificationConst = ApsisModification.C
 
     const deltaVRise = param_deltaV(
         vessel.orbit,
-        semiMajorAxis(body, ship.apoapsis(), ship.apoapsis()),
+        semi_major_axis(body, ship.apoapsis(), ship.apoapsis()),
         vessel.orbit.inclination,
         ship.apoapsis(),
         ship.apoapsis()
     )
     const deltaVDecrease = param_deltaV(
         vessel.orbit,
-        semiMajorAxis(body, ship.periapsis(), ship.periapsis()),
+        semi_major_axis(body, ship.periapsis(), ship.periapsis()),
         vessel.orbit.inclination,
         ship.periapsis(),
         ship.periapsis()
@@ -61,10 +61,10 @@ sync fn direction_manager(ship: Ship, thrustTrueAno: float, thrustOrientation: A
     const vessel = ship.ship
 
     const vesselTrueAno = vessel.orbit.true_anomaly_from_vector(vessel.position) * RAD_TO_DEG
-    const thrustElevation = prograde_elevation(thrustTrueAno, vessel.orbit.semi_major_axis, semiMinorAxis(vessel.orbit.semi_major_axis, vessel.orbit.eccentricity))
+    const thrustElevation = prograde_elevation(thrustTrueAno, vessel.orbit.semi_major_axis, semi_minor_axis(vessel.orbit.semi_major_axis, vessel.orbit.eccentricity))
 
-    const sma = semiMajorAxis(vessel.main_body, ship.periapsis(), ship.apoapsis())
-    const smi = semiMinorAxis(sma, vessel.orbit.eccentricity)
+    const sma = semi_major_axis(vessel.main_body, ship.periapsis(), ship.apoapsis())
+    const smi = semi_minor_axis(sma, vessel.orbit.eccentricity)
     const radiusAltTA = radius_true_anomaly(vesselTrueAno, sma , smi)
     const y = (max(log(sma), 1) + 1) * error + 1
     const x = radiusAltTA * sin_deg(thrustTrueAno - vesselTrueAno)
@@ -101,8 +101,6 @@ sync fn controleThrottle(ship: Ship, altitude: float, burntime: float, thrustTru
 
     const maxAllowedThrottle = [throttleTime, ship.throttle_temperature(), ship.throttle_q(), ship.throttle_altitude(altitude)]
         .sort()[0]
-    // const maxAllowedThrottle = [throttleTime, ship.throttle_temperature(), ship.throttle_q()]
-    //     .sort()[0]
 
 // ksp::console::CONSOLE.print_at(9, 50, "ttTi ttTe ttQ ttAl ttDi")
 // ksp::console::CONSOLE.print_at(10, 50, throttleTime.to_fixed(2))
@@ -142,7 +140,7 @@ pub fn set_apsis_fine(ship: Ship, apsis: ApsisConst, altitude:float) -> Result<U
     const thrustTrueAno = selector(fn() -> {Circle.None}, fn() -> {Circle.Semi})
     const thrustOrientation = if(toSetApsis() < altitude) ApsisModification.Raise else ApsisModification.Decrease
 
-    const deltaVLeft = fn() -> param_deltaV(vessel.orbit, semiMajorAxis(body, toKeepApsis(), altitude), vessel.orbit.inclination, toKeepApsis(), toKeepApsis())
+    const deltaVLeft = fn() -> param_deltaV(vessel.orbit, semi_major_axis(body, toKeepApsis(), altitude), vessel.orbit.inclination, toKeepApsis(), toKeepApsis())
 
     const done = fn() -> {
         if(round(staticApsis) == round(altitude))

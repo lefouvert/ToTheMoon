@@ -6,7 +6,6 @@ use { min, max, clamp, abs, MIN_FLOAT, log, clamp_degrees360 } from core::math
 use { ExperimentState, Experiment, ResearchLocation, ResearchReport, ScienceSituation } from ksp::science
 use { CONSOLE } from ksp::console
 
-// use { ThrustSituation, ThrustSituationConst, MassState, MassStateConst, Case, Throttle, Resource, SolarPanel } from ship::constant
 use { ThrustSituation, ThrustSituationConst, MassState, MassStateConst, Case, Throttle, Resource } from ship::constant
 use { InsignificantAtmoshpere } from body::constant
 use { Circle, Array } from math::constant
@@ -37,8 +36,8 @@ pub struct Ship(vessel: Vessel) {
     antinormal: fn() -> Direction = fn() -> (-vessel.orbit.normal_plus(current_time())).to_direction()
     radial: fn() -> Direction = fn() -> vessel.orbit.radial_plus(current_time()).to_direction()
     antiradial: fn() -> Direction = fn() -> (-vessel.orbit.radial_plus(current_time())).to_direction()
-    // up: Vec3 = vessel.control_frame.to_local_position(vessel.global_up)
-    // north: Vec3 = vessel.control_frame.to_local_position(vessel.global_north)
+    // up: Direction = vessel.global_up.to_local(control_frame).to_direction
+    // north: Direction = vessel.global_north.to_local(control_frame).to_direction
     apoapsis: fn() -> float = fn() -> vessel.orbit.apoapsis|0
     periapsis: fn() -> float = fn() -> vessel.orbit.periapsis
     altitude: fn() -> float = fn() -> vessel.altitude_sealevel
@@ -61,7 +60,7 @@ impl Ship {
 //////////////////////////////// ongoing
     sync fn throttle_direction(self, targetDir: Direction, deadzone: float = 0, tolerance: float = 1.0) -> float = {
         const assessedDeviation = max(deviation(targetDir, self.ship.facing) - deadzone, Circle.None)
-        return earlyWeightConvex(tolerance * assessedDeviation / Circle.Quarter)
+        earlyWeightConvex(tolerance * assessedDeviation / Circle.Quarter)
     }
 
     sync fn throttle_temperature(self) -> float = {
@@ -76,11 +75,10 @@ impl Ship {
             ratio: (Throttle.Max - Throttle.Min) / (minTempFullThrust - maxTempRatio),
             yIntercept: -maxTempRatio * (Throttle.Max - Throttle.Min) / (minTempFullThrust - maxTempRatio)
         )
-        return clamp(slope.ratio * (hotPart.temperature / hotPart.max_temperature) + slope.yIntercept, Throttle.Min, Throttle.Max)
+        clamp(slope.ratio * (hotPart.temperature / hotPart.max_temperature) + slope.yIntercept, Throttle.Min, Throttle.Max)
     }
 
     sync fn throttle_q(self) -> float = {
-        // return Throttle.Max // not implemented yet TODO same as throttle_temperature. see vessel.dynamic_pressure_kpa. Wait for part.maxDynPressure
         const MAX_Q = 100.0
 
         const minQFullThrust = 0.5
@@ -89,12 +87,11 @@ impl Ship {
             ratio: (Throttle.Max - Throttle.Min) / (minQFullThrust - maxQRatio),
             yIntercept: -maxQRatio * (Throttle.Max - Throttle.Min) / (minQFullThrust - maxQRatio)
         )
-        return clamp(slope.ratio * (self.ship.dynamic_pressure_kpa / MAX_Q) + slope.yIntercept, Throttle.Min, Throttle.Max)
+        clamp(slope.ratio * (self.ship.dynamic_pressure_kpa / MAX_Q) + slope.yIntercept, Throttle.Min, Throttle.Max)
     }
 
-    sync fn set_throttle_altitude(self, targetAltitude:float, timeToStop:float = 5) -> Unit = {
+    sync fn set_throttle_altitude(self, targetAltitude:float, timeToStop:float = 5) -> Unit =
         self.smoothStop = SmoothStop(targetAltitude, timeToStop)
-    }
 
     sync fn throttle_altitude(self, measure:float) -> float = { // TODO check why sometime it stop early
         if(abs(self.smoothStop.differential.lastResult) < MIN_FLOAT)
@@ -116,7 +113,7 @@ impl Ship {
                 commun_direction / (abs(dMByDT) * self.smoothStop.timeToStop)
 
         self.smoothStop.lastThrottle = clamp((self.smoothStop.target - measure) * deltaDirection, Throttle.Min, min(self.smoothStop.lastThrottle + 0.01, Throttle.Max))
-        return self.smoothStop.lastThrottle
+        self.smoothStop.lastThrottle
     }
 
     fn is_maneuverable(self, verbose: bool = true) -> bool = {
@@ -129,18 +126,18 @@ impl Ship {
     fn align(self, pointToLook : Vec3, delta: float = 1.0) -> bool = { // in celectial frame
         if(!self.is_maneuverable())
             return false
+
         // Enable SAS
         self.ship.autopilot.enabled = true
         self.ship.autopilot.mode = AutopilotMode.Autopilot
-        // self.ship.autopilot.target_orientation = direction.vector
         self.ship.autopilot.target_orientation = pointToLook
+
         // Wait for alignment
-        // while(self.ship.facing.vector.angle_to(direction.vector) > delta) yield()
         while(self.ship.facing.vector.angle_to(pointToLook) > delta) yield()
         while(self.ship.angular_momentum.magnitude > delta) yield()
 
         self.ship.autopilot.mode = AutopilotMode.StabilityAssist
-        return true
+        true
     }
 
     fn park(self) -> bool = {
@@ -172,123 +169,114 @@ ksp::console::CONSOLE.print_line("star: " + referenceOrbit.reference_body.name)
         const exposureDefinition = ideal_exposure(self.ship)
 ksp::console::CONSOLE.print_line("exposure magnitude: " + exposureDefinition.exposure.magnitude.to_string())
 
-        const teststeer = fn() -> {
-            const testdir = ksp::math::from_vector_to_vector(vessel.global_facing.to_local(vessel.celestial_frame).vector, ideal_exposure(self.ship).exposure)
-            return vec3(testdir.pitch, 0.0, 0.0)
-        }
-
-        vessel.manage_steering(fn(whatever: float) -> teststeer())
-
         const starIdealPosition = exposureDefinition.exposure
+        const orbitNormalIdealPosition = exposureDefinition.normal
 
         const starIdealPositionPolar = cartesian_to_polar(starIdealPosition)
-        // const facingPolar = cartesian_to_polar(vessel.facing.vector)
-        // const facingPolar = cartesian_to_polar(vessel.global_facing.to_local(vessel.control_frame).vector)
+        const orbitNormalIdealPositionPolar = cartesian_to_polar(orbitNormalIdealPosition)
+
         const facingPolar = cartesian_to_polar(vessel.global_facing.to_local(vessel.celestial_frame).vector)
         const starPolar = cartesian_to_polar(starVector)
+        const upPolar = cartesian_to_polar(vessel.global_up.to_local(vessel.celestial_frame))
+        const orbitNormalPolar = cartesian_to_polar(orbitNormal)
 
-        // const deltaPolar = vec2(clamp_degrees360(starIdealPositionPolar.y - facingPolar.y), clamp_degrees360(starIdealPositionPolar.z - facingPolar.z))
-        const deltaPolar = vec2(clamp_degrees360(starIdealPositionPolar.y - facingPolar.y), clamp_degrees360(starIdealPositionPolar.z - facingPolar.z))
-ksp::console::CONSOLE.print_line("delta: [" + deltaPolar.x.to_string() + ", " + deltaPolar.y.to_string() + "]")
+        const deltaFacingPolar = vec2(clamp_degrees360(starIdealPositionPolar.y - facingPolar.y), clamp_degrees360(starIdealPositionPolar.z - facingPolar.z))
+        const deltaUpPolar = vec2(clamp_degrees360(orbitNormalIdealPositionPolar.y - upPolar.y), clamp_degrees360(orbitNormalIdealPositionPolar.z - upPolar.z))
+ksp::console::CONSOLE.print_line("deltaFacing: [" + deltaFacingPolar.x.to_string() + ", " + deltaFacingPolar.y.to_string() + "]")
 
-        // const fakeStarPolar = vec3(starPolar.x, clamp_degrees360(starPolar.y - deltaPolar.x), clamp_degrees360(starPolar.z - deltaPolar.y))
-        const fakeStarPolar = vec3(starPolar.x, clamp_degrees360(starPolar.y + deltaPolar.x), clamp_degrees360(starPolar.z - deltaPolar.y))
+        const fakeStarPolar = vec3(starPolar.x, clamp_degrees360(starPolar.y + deltaFacingPolar.x), clamp_degrees360(starPolar.z - deltaFacingPolar.y))
         const fakeStar = polar_to_cartesian(fakeStarPolar)
+        const fakeOrbitNormalPolar = vec3(orbitNormalPolar.x, clamp_degrees360(orbitNormalPolar.y + deltaUpPolar.x), clamp_degrees360(orbitNormalPolar.z - deltaUpPolar.y))
+        const fakeOrbitNormal = polar_to_cartesian(fakeOrbitNormalPolar)
 
-// for(v in testRot.value)
-//     ksp::debug::DEBUG.add_vector(
-//         fn() -> vessel.command_modules[0].global_position,
-//         fn() -> v.to_global(vessel.celestial_frame) * 50,
-//         ksp::console::RED,
-//         "Rot",
-//         1)
+
+        // const teststeer = fn() -> {
+        //     const ideal = ideal_exposure(self.ship)
+        //     const testdir = ksp::math::from_vector_to_vector(starVector, ideal.exposure)
+        //     return vec3(testdir.pitch, testdir.yaw, ideal.normal.angle_to(orbitNormal))
+        // }
+
+        // vessel.manage_steering(fn(whatever: float) -> teststeer())
 
 ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[0].global_position,
+    fn() -> vessel.command_modules[Array.First].part.global_position,
     fn() -> exposureDefinition.exposure.to_global(vessel.celestial_frame).normalized * 50,
-    ksp::console::BLUE,
+    ui::constant::ULTRAMARINE,
     "initial best exposure",
     1)
 
 ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[0].global_position,
+    fn() -> vessel.command_modules[Array.First].part.global_position,
     fn() -> exposureDefinition.normal.to_global(vessel.celestial_frame).normalized * 50,
-    ksp::console::WHITE,
+    ui::constant::GREY,
     "initial best normal",
     1)
 
 ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[0].global_position,
+    fn() -> vessel.command_modules[Array.First].part.global_position,
     fn() -> polar_to_cartesian(facingPolar).to_global(vessel.celestial_frame) * 50,
-    ksp::console::BLACK,
+    ui::constant::CRIMSON,
     "initial facing",
     1)
 
 ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[0].global_position,
-    fn() -> ideal_exposure(self.ship).exposure.to_global(vessel.control_frame).normalized * 50,
-    ksp::console::WHITE,
+    fn() -> vessel.command_modules[Array.First].part.global_position,
+    fn() -> ideal_exposure(self.ship).normal.to_global(vessel.celestial_frame).normalized * 50,
+    ui::constant::WHITE,
+    "best normal",
+    1)
+
+ksp::debug::DEBUG.add_vector(
+    fn() -> vessel.command_modules[Array.First].part.global_position,
+    fn() -> ideal_exposure(self.ship).exposure.to_global(vessel.celestial_frame).normalized * 50,
+    ui::constant::BLUE,
     "best exposure",
     1)
 
 ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[0].global_position,
+    fn() -> vessel.command_modules[Array.First].part.global_position,
     fn() -> vessel.global_facing.vector * 50,
-    ksp::console::RED,
+    ui::constant::RED,
     "facing",
     1)
 
+// ideal normal have to aim
 ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[0].global_position,
+    fn() -> vessel.command_modules[Array.First].part.global_position,
+    fn() -> orbitNormal.to_global(vessel.celestial_frame).normalized * 75,
+    ui::constant::GREEN,
+    "ObtNormal",
+    1)
+
+ksp::debug::DEBUG.add_vector(
+    fn() -> vessel.command_modules[Array.First].part.global_position,
+    fn() -> fakeOrbitNormal.to_global(vessel.celestial_frame).normalized * 50,
+    ui::constant::FOREST,
+    "ObtNormal'",
+    1)
+
+// ideal exposure have to aim
+ksp::debug::DEBUG.add_vector(
+    fn() -> vessel.command_modules[Array.First].part.global_position,
     fn() -> starVector.to_global(vessel.celestial_frame).normalized * 75,
     // fn() -> starVec().to_global(vessel.control_frame).normalized * 50,
-    ksp::console::YELLOW,
+    ui::constant::YELLOW,
+    // ksp::console::color(1.0, 1.0, 0.0, 1.0),
     "Kerbol",
     1)
 
 ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[0].global_position,
+    fn() -> vessel.command_modules[Array.First].part.global_position,
     fn() -> fakeStar.to_global(vessel.celestial_frame).normalized * 50,
     // fn() -> starVec().to_global(vessel.control_frame).normalized * 50,
-    ksp::console::GREEN,
+    ui::constant::ORANGE,
+    // ksp::console::color(1.0, 0.5, 0.0, 1.0),
     "Kerbol'",
     1)
 
-// ksp::debug::DEBUG.add_vector(
-//     fn() -> vessel.command_modules[0].global_position,
-//     fn() -> starIdealPosition.to_global(vessel.control_frame) * 50,
-//     ksp::console::BLUE,
-//     "best exposure",
-//     1)
-
-// ksp::debug::DEBUG.add_vector(
-//     fn() -> vessel.command_modules[0].global_position,
-//     fn() -> vessel.global_facing.vector * 50,
-//     ksp::console::RED,
-//     "facing",
-//     1)
-
-// ksp::debug::DEBUG.add_vector(
-//     fn() -> vessel.command_modules[0].global_position,
-//     fn() -> starVec.to_global(vessel.control_frame).normalized * 50,
-//     // fn() -> starVec().to_global(vessel.control_frame).normalized * 50,
-//     ksp::console::YELLOW,
-//     "Kerbol",
-//     1)
-
-// ksp::debug::DEBUG.add_vector(
-//     fn() -> vessel.command_modules[0].global_position,
-//     fn() -> newStar.to_global(vessel.control_frame).normalized * 50,
-//     // fn() -> starVec().to_global(vessel.control_frame).normalized * 50,
-//     ksp::console::GREEN,
-//     "Kerbol'",
-//     1)
-
-// self.align(fakeStar)
-self.align(vessel.orbit.orbit_normal)
+self.align(fakeStar)
+// self.align(vessel.orbit.orbit_normal)
 ksp::game::sleep(120)
-
-
         // return self.align(fakeStar)
         return self.align(vessel.orbit.orbit_normal)
     }
@@ -316,7 +304,7 @@ ksp::game::sleep(120)
         if(stagingCase.exists(fn(c) -> c.need))
             return stage(self, stagingCase, verbose)
 
-        return stagingCase.exists(fn(c) -> c.need)
+        stagingCase.exists(fn(c) -> c.need)
     }
 
     fn check_science(self, autoSend: bool = true, verbose: bool = true) -> Unit = {
@@ -339,9 +327,8 @@ ksp::game::sleep(120)
                     .filter(fn(e) -> e.current_experiment_state == ExperimentState.READY
                         && e.current_experiment_state != ExperimentState.ALREADYSTORED
                         && ((!e.experiment_location.defined) || (!locationComparison(e.experiment_location.value, shipLocation))))
-                // ).reduce(<Experiment>[], fn(flat, arr) -> flat + arr) // TODO flat_map
                 ).flat_map(fn(e) -> e)
-                // .filter(fn(e) -> !storedReports.exists(fn(r) -> r.definition.id == e.definition.id && (locationComparison(r.research_location, shipLocation))))
+                // .filter(fn(e) -> !storedReports.exists(fn(r) -> r.definition.id == e.definition.id && (locationComparison(r.research_location, shipLocation)))) // To not research already known datascience.
             run_science(self, newExperiments, verbose)
         }
         if(autoSend)
@@ -349,20 +336,17 @@ ksp::game::sleep(120)
         // TODO check experiment paused
     }
 
-    sync fn science_running(self) -> bool = {
+    sync fn science_running(self) -> bool =
         self.ship.parts
             .filter(fn(p) -> p.science_experiment.defined)
             .exists(fn(p) -> p.science_experiment.value.experiments
                 .exists(fn(e) -> e.current_experiment_state == ExperimentState.RUNNING)
             )
-    }
 
-    sync fn available_power(self) -> float = {
+    sync fn available_power(self) -> float =
         self.ship.parts
-            // .reduce(<ResourceData>[], fn(flat, p) -> flat + p.resources.list.filter(fn(r) -> r.resource.id == Resource.EC))
             .flat_map(fn(p) -> p.resources.list.filter(fn(r) -> r.resource.id == Resource.EC))
             .reduce(0.0, fn(sum, r) -> sum + r.stored_units)
-    }
 
 
     fn check_deploy(self, force: bool = false, verbose: bool = true) -> Part[] = {
@@ -374,10 +358,9 @@ ksp::game::sleep(120)
             .filter(fn(p) -> p.deployable.value.extendable
                 && (if(!force) p.deployable.value.retractable else force)
                 && p.deployable.value.deploy_state == DeployableDeployState.Retracted
-                // && (!p.resources.list.exists(fn(r) -> r.resource.id == Resource.Ab))) //TODO replace by proper heatshield module
                 && (!p.heatshield.defined))
         self.deploy(toDeploy, verbose)
-        return toDeploy
+        toDeploy
     }
 
     fn deploy(self, toDeploy: Part[], verbose: bool = true) -> bool = {
@@ -385,7 +368,6 @@ ksp::game::sleep(120)
         const sectionVec = vessel.global_facing.to_local(vessel.control_frame).vector.cross(vessel.global_up.to_local(vessel.control_frame))
         const sortedDeploy = toDeploy
             .filter(fn(p) -> p.deployable.defined)
-            // .map(fn(p) -> (module: p.deployable.value, distance: (abs(p.global_position.to_local(vessel.control_frame).dot(sectionVec)) * vessel.global_center_of_mass.to_local(vessel.control_frame)).magnitude))
             .map(fn(p) -> (module: p.deployable.value, distance: abs(p.global_position.to_local(vessel.control_frame).dot(sectionVec))))
             .sort_by(fn(r) -> r.distance)
 
@@ -395,16 +377,13 @@ ksp::game::sleep(120)
                 self.print("Extending " + r.module.part_name)
             sleep(r.distance)
         }
-        return sortedDeploy.length > 0
+        sortedDeploy.length > 0
     }
 
-    sync fn is_deployed(self, toCheck: Part[]) -> bool = {
-// for(c in toCheck)
-//     ksp::console::CONSOLE.print_line(c.part_name + " : " + c.deployable.value.extendable.to_string() + "|" + c.deployable.value.deploy_state.to_string())
-        return !toCheck
+    sync fn is_deployed(self, toCheck: Part[]) -> bool =
+        !toCheck
             .filter_map(fn(p) -> p.deployable)
             .exists(fn(m) -> !(m.extendable && m.deploy_state == DeployableDeployState.Extended))
-    }
 
 
     fn check_retract(self, verbose: bool = true) -> Part[] = {
@@ -413,7 +392,7 @@ ksp::game::sleep(120)
             .filter(fn(p) -> p.deployable.defined)
             .filter(fn(p) -> p.deployable.value.extendable && p.deployable.value.retractable && p.deployable.value.deploy_state == DeployableDeployState.Extended)
         self.retract(toRetract, verbose)
-        return toRetract
+        toRetract
     }
 
     fn retract(self, toRetract: Part[], verbose: bool = true) -> bool = {
@@ -421,7 +400,6 @@ ksp::game::sleep(120)
         const sectionVec = vessel.global_facing.to_local(vessel.control_frame).vector.cross(vessel.global_up.to_local(vessel.control_frame))
         const sortedRetract = toRetract
             .map(fn(p) -> (module: p.deployable.value, distance: abs(p.global_position.to_local(vessel.control_frame).dot(sectionVec))))
-            // .map(fn(p) -> (module: p.deployable.value, distance: (abs(p.global_position.to_local(vessel.control_frame).dot(sectionVec)) * vessel.global_center_of_mass.to_local(vessel.control_frame)).magnitude))
             .sort_by(fn(r) -> r.distance)
             .reverse()
 
@@ -431,14 +409,13 @@ ksp::game::sleep(120)
                 self.print("Retracting " + r.module.part_name)
             sleep(r.distance)
         }
-        return sortedRetract.length > 0
+        sortedRetract.length > 0
     }
 
-    sync fn is_retracted(self, toCheck: Part[]) -> bool = {
-        return !toCheck
+    sync fn is_retracted(self, toCheck: Part[]) -> bool =
+        !toCheck
             .filter_map(fn(p) -> p.deployable)
             .exists(fn(m) -> !(m.retractable && m.deploy_state == DeployableDeployState.Retracted))
-    }
 
 
     fn check_jettison(self, verbose: bool = true) -> Part[] = {
@@ -448,11 +425,8 @@ ksp::game::sleep(120)
         const toJettison = vessel.parts
             .filter(fn(p) -> p.fairing.defined && p.is_cargo_bay)
             .filter(fn(p) -> !p.fairing.value.is_jettisoned)
-            // .filter(fn(p) -> (!p.part_name.contains("tube"))
-            //     && (!p.part_name.contains("heatshield"))
-            //     && (!p.part_name.contains("engine"))) // TODO remove at the profit of better way to filter
         self.jettison(toJettison, verbose)
-        return toJettison
+        toJettison
     }
 
     fn jettison(self, toJettison: Part[], verbose: bool = true) -> bool = {
@@ -470,15 +444,14 @@ ksp::game::sleep(120)
         if(sortedJettison.length == Array.Empty)
             return false
 
-        return sortedJettison
+        sortedJettison
             .reduce(true, fn(checked, j) -> checked && j.module.jettison())
     }
 
-    sync fn is_jettisoned(self, toCheck: Part[]) -> bool = {
-        return !toCheck
+    sync fn is_jettisoned(self, toCheck: Part[]) -> bool =
+        !toCheck
             .filter_map(fn(p) -> p.fairing)
             .exists(fn(m) -> !m.is_jettisoned)
-    }
 
 //////////////////////////////// ok
 
@@ -491,7 +464,7 @@ ksp::game::sleep(120)
                 .map(fn(s) -> Stage(vessel, s))
             self.current_stage = self.stages.length - 1
         }
-        return true
+        true
     }
 
     fn drop(self) -> bool = {
@@ -501,7 +474,7 @@ ksp::game::sleep(120)
             .map(fn(p) -> p.launch_clamp.value.release())
             .exists(fn(r) -> !r)
         self.update_stages("ship drop")
-        return droped
+        droped
     } // TODO YAGNI
 
 
@@ -511,13 +484,13 @@ ksp::game::sleep(120)
             .filter(fn(s) -> s.has_engine())
             .sort_by(fn(s) -> s.activation_number)
             .reverse()
-        return if (thrustStages.length > 0) thrustStages[0].activation_number else None()
+        if (thrustStages.length > 0) thrustStages[0].activation_number else None()
     }
 
     sync fn throttle_current(self) -> float = {
         if(!self.firstThrustStage().defined)
             return Throttle.Min
-        return self.ship.engines
+        self.ship.engines
             .sort_by(fn(e) -> e.current_throttle)
             .reverse()[0].current_throttle
     }
@@ -547,17 +520,17 @@ ksp::game::sleep(120)
             .reduce(0.0, fn(mass, p) -> if (context == MassState.Total) mass + p.total_mass else mass + p.dry_mass)
 
     sync fn height(self) -> float = {
-        const upVec = self.ship.up
+        const upVec = self.ship.up.normalized
         const partsPosition = self.ship.parts
             .map(fn(p) -> p.position.dot(upVec))
             .sort()
-        return partsPosition[partsPosition.length - 1] - partsPosition[0]
+        partsPosition[partsPosition.length - 1] - partsPosition[Array.First]
     }
 
     fn print(self, message: string, multiline: bool = false) -> Unit = {
         const timestamp = hms(current_time() - abs(self.launch_timeStamp))
         const head = (if(self.launch_timeStamp < 0.0) "_" else "t")
-        + "+" //(if(timestamp.positive) "+" else "-")
+        + "+" // (if(timestamp.positive) "+" else "-")
         + timestamp.hour.to_string() + "h"
         + timestamp.minute.to_string().pad_left("00".length).replace(" ", "0") + "m"
         + timestamp.second.to_fixed(2).pad_left("00.00".length).replace(" ", "0") + "s"
@@ -603,35 +576,35 @@ ksp::game::sleep(120)
     }
 }
 
-    fn stage(ship: Ship, trigger: (need: bool, reason: string)[], verbose: bool) -> bool = {
-        const vessel = ship.ship
-        const oldStage = vessel.staging.current
-        const reason = trigger
-            .filter(fn(c) -> c.need)
-            .reduce("", fn(agg, c) -> agg + (if(agg.length > 0) "|" else "") + c.reason)
-        if(verbose) ship.print("(" + reason + ") -> Preparing to stage...")
+fn stage(ship: Ship, trigger: (need: bool, reason: string)[], verbose: bool) -> bool = {
+    const vessel = ship.ship
+    const oldStage = vessel.staging.current
+    const reason = trigger
+        .filter(fn(c) -> c.need)
+        .reduce("", fn(agg, c) -> agg + (if(agg.length > 0) "|" else "") + c.reason)
+    if(verbose) ship.print("(" + reason + ") -> Preparing to stage...")
 
-        if(atmosphere_depth(vessel.main_body) > vessel.altitude_sealevel
-        && vessel.situation != VesselSituation.Landed
-        && vessel.situation != VesselSituation.Splashed
-        && vessel.situation != VesselSituation.PreLaunch)
-            ship.align(vessel.surface_velocity, 5)
-            // ship.align(vessel.surface_velocity.to_direction(), 5)
+    if(atmosphere_depth(vessel.main_body) > vessel.altitude_sealevel
+    && vessel.situation != VesselSituation.Landed
+    && vessel.situation != VesselSituation.Splashed
+    && vessel.situation != VesselSituation.PreLaunch)
+        ship.align(vessel.surface_velocity, 5)
 
-        wait_until(fn() -> vessel.staging.ready)
-        vessel.staging.next()
-        wait_until(fn() -> vessel.staging.ready)
+    wait_until(fn() -> vessel.staging.ready)
+    vessel.staging.next()
+    wait_until(fn() -> vessel.staging.ready)
 
-        if(vessel.dynamic_pressure_kpa > 1)
-            sleep(1.0)
+    if(vessel.dynamic_pressure_kpa > 1)
+        sleep(1.0)
 
-        if(trigger[Case.NOT_IGN].need)
-            wait_until(fn() -> ship.stages[ship.current_stage].ignited())
+    if(trigger[Case.NOT_IGN].need)
+        wait_until(fn() -> ship.stages[ship.current_stage].ignited())
 
-        wait_until(fn() -> ship.update_stages("check_stage"))
-        if(verbose) ship.print("STAGING (" + (oldStage).to_string() + " -> " + ship.current_stage.to_string() + ").")
-        return ship.check_staging(verbose)
-    }
+    wait_until(fn() -> ship.update_stages("check_stage"))
+    if(verbose)
+        ship.print("STAGING (" + (oldStage).to_string() + " -> " + ship.current_stage.to_string() + ").")
+    ship.check_staging(verbose)
+}
 
 
 fn run_science(thisShip: Ship, experiments: Experiment[], verbose: bool = true) -> bool = {
@@ -644,30 +617,24 @@ fn run_science(thisShip: Ship, experiments: Experiment[], verbose: bool = true) 
             .map(fn(e) -> e.run_experiment())
             .exists(fn(done) -> done)
     }
-    return false
+    false
 }
 
 fn emmit_science(thisShip: Ship, reports: ResearchReport[], verbose: bool = true) -> bool = {
     const toSendReports = reports
         .filter(fn(r) -> r.transmission_percentage == 0.0 && r.transmission_size > 0.0 && (!r.transmission_status))
         .reduce((reports: <ResearchReport>[], consumption: 0.0), fn(agg, r) -> if(agg.consumption + r.ec_required < thisShip.available_power()) (reports: agg.reports + r, consumption: agg.consumption + r.ec_required) else (reports: agg.reports, consumption: agg.consumption))
-
-// ksp::console::CONSOLE.print_at(13, 70, "[CE]: ".pad_right(7) + " : " + self.available_power().to_fixed(2).pad_left(6))
-
-// ksp::console::CONSOLE.print_at(14, 70, "CE->: ".pad_right(7) + " : " + sendableReports.consumption.to_fixed(2).pad_left(6))
-
     if(verbose) {
         for (r in toSendReports.reports)
                 thisShip.print("Emitting " + r.definition.id + " from " + r.research_location.body_name + "/" + r.research_location.science_situation.to_string() + "/" + r.research_location.science_region)
     }
-    return toSendReports.reports
+    toSendReports.reports
         .map(fn(r) -> r.start_transmit())
         .exists(fn(done) -> done)
-    return true
 }
 
 // record of :
-// vector going from command module to theorical ideal sun direction. Magnitude is expected EC output not considering blocking bodies or parts.
+// vector going from command module to theorical ideal sun direction. Magnitude is expected EC output not considering blocking bodies or parts, or Star ratio/distance.
 // vector to align with sun's first child normal to orbit
 // vector are local to celestial_frame
 sync fn ideal_exposure(vessel: Vessel) -> (exposure: Vec3, normal: Vec3) = {
@@ -720,7 +687,7 @@ sync fn ideal_exposure(vessel: Vessel) -> (exposure: Vec3, normal: Vec3) = {
         return (exposure: staticLightVector + rotaryLightVector, normal: staticLightVector.exclude_from(lightPlanes[Array.First] + random_normal(trueStatic)))
     }
 
-    const intersectPlanes = (0..(intersectCount))
+    const intersectPlanes = (0..intersectCount)
         .map(fn(i) -> ((i + 1)..lightPlanes.length).map(fn(j) -> lightPlanes[i].cross(lightPlanes[j]).normalized * (lightPlanes[i].magnitude + lightPlanes[j].magnitude)))
         .reduce(<Vec3>[], fn(flat, arr_intersect) -> flat + arr_intersect) // intersect plane is best direction to light both light plane. Sum up all intersect.
 
@@ -729,7 +696,7 @@ sync fn ideal_exposure(vessel: Vessel) -> (exposure: Vec3, normal: Vec3) = {
 
     // OUT: All.
 // ksp::console::CONSOLE.print_line("OUT : All.")
-    return (exposure: allLightVector, normal: allLightVectorNormal)
+    (exposure: allLightVector, normal: allLightVectorNormal)
     // return (exposure: vec3(0,0,0), normal: vec3(0,0,0))
 }
 
@@ -740,7 +707,8 @@ sync fn group_statics_as_rotaries(staticSolarPanels: Part[]) -> Part[][] = {
     const accuracy = 2
 
     const normalCount = (((staticSolarPanels.length - 1)**2) + (staticSolarPanels.length - 1)) / 2 // triangular number
-    const groups_by_normal = (0..staticSolarPanels.length)
+
+    (0..staticSolarPanels.length)
         .map(fn(i) -> ((i + 1)..staticSolarPanels.length).map(fn(j) -> (
             partA: staticSolarPanels[i],
             partB: staticSolarPanels[j],
@@ -756,7 +724,7 @@ sync fn group_statics_as_rotaries(staticSolarPanels: Part[]) -> Part[][] = {
                     if(almost_equal_global(g.normalId, partPair.normal, partPair.partA.vessel.control_frame, accuracy)) { // to group up
                         if(g.parts.exists(fn(p) -> p.position == partPair.partA.position) && (!g.parts.exists(fn(p) -> p.position == partPair.partB.position))) // TODO prefer a part.id than a part.position when it will be available
                             return (parts: g.parts + partPair.partB, normalId: g.normalId)
-                        if(g.parts.exists(fn(p) -> p.position == partPair.partB.position) && (!g.parts.exists(fn(p) -> p.position == partPair.partA.position)))
+                        if(g.parts.exists(fn(p) -> p.position == partPair.partB.position) && (!g.parts.exists(fn(p) -> p.position == partPair.partA.position))) // TODO prefer a part.id than a part.position when it will be available
                             return (parts: g.parts + partPair.partA, normalId: g.normalId)
                         return g
                     } else // not concerned
@@ -770,17 +738,15 @@ sync fn group_statics_as_rotaries(staticSolarPanels: Part[]) -> Part[][] = {
         .reduce(<Part[]>[], fn(clean, partArr) -> {
             if(clean.length == Array.Empty)
                 return clean + partArr
-            return clean + partArr.filter(fn(part) -> !clean.flat_map(fn(a) -> a).exists(fn(p) -> p.position == part.position))
+            return clean + partArr.filter(fn(part) -> !clean.flat_map(fn(a) -> a).exists(fn(p) -> p.position == part.position)) // TODO prefer a part.id than a part.position when it will be available
         }) // deduplicate
         .filter(fn(a) -> a.length > Array.Empty) // get rid of possible empties array
-
-    return groups_by_normal
 }
 
 sync fn enlight_static_as_rotaries(staticSolarPanels: Part[][]) -> Vec3[] = {
     const vessel = staticSolarPanels[Array.First][Array.First].vessel
     const accuracy = 2
-    return staticSolarPanels
+    staticSolarPanels
         .map(fn(circle) -> {
             const meanFlowRate = (circle.reduce(0.0, fn(sum, p) -> sum + p.solar_panel.value.base_flow_rate) / circle.length.to_float) * (Circle.Quarter / Circle.Full) // ((sum individual flow) / part_number) * mean_exposure
 
@@ -801,12 +767,12 @@ sync fn random_normal(staticSolarPanels: Part[]) -> Vec3 = {
         .reduce(vec3(0.0, 0.0, 0.0), fn(sum, p) -> sum + p.global_rotation.to_local(p.vessel.celestial_frame).up_vector.normalized * p.solar_panel.value.base_flow_rate)
     const staticLightVectorNormalCase1 = staticSolarPanels
         .reduce(vec3(0.0, 0.0, 0.0), fn(sum, p) -> sum + p.global_rotation.to_local(p.vessel.celestial_frame).vector.normalized * p.solar_panel.value.base_flow_rate)
-    return staticLightVector.exclude_from(if(staticLightVectorNormalCase0.magnitude > staticLightVectorNormalCase1.magnitude) staticLightVectorNormalCase0 else staticLightVectorNormalCase1)
+    staticLightVector.exclude_from(if(staticLightVectorNormalCase0.magnitude > staticLightVectorNormalCase1.magnitude) staticLightVectorNormalCase0 else staticLightVectorNormalCase1)
 }
 
-sync fn aggregate_rotaries_as_plane(lightRotaries: Vec3[]) -> Vec3[] = {
-    // sum parallels planes
-    return lightRotaries.reduce(<Vec3>[], fn(notParallel, normal) -> {
+// sum parallels planes
+sync fn aggregate_rotaries_as_plane(lightRotaries: Vec3[]) -> Vec3[] =
+    lightRotaries.reduce(<Vec3>[], fn(notParallel, normal) -> {
         if(!notParallel.exists(fn(np) -> round_at(np.normalized.cross(normal.normalized).magnitude, 2) == 0.0)) // empty or not parallel
             return notParallel + normal
         return notParallel.map(fn(np) -> {
@@ -816,165 +782,19 @@ sync fn aggregate_rotaries_as_plane(lightRotaries: Vec3[]) -> Vec3[] = {
                 np
         })
     })
-}
 
-sync fn fasten_sum_unoriented_vectors(unorientedVectors: Vec3[], reference: Vec3) -> Vec3 = {
-    return unorientedVectors.reduce(vec3(0.0, 0.0, 0.0), fn(vsum, v) -> {
+
+sync fn fasten_sum_unoriented_vectors(unorientedVectors: Vec3[], reference: Vec3) -> Vec3 =
+    unorientedVectors.reduce(vec3(0.0, 0.0, 0.0), fn(vsum, v) -> {
         if(round_at(reference.normalized.dot(v.normalized), 1) != 0.0) // mostly in direction of reference, if any
             vsum + (v * (reference.normalized.dot(v.normalized)))
         else
             vsum + v
     })
-}
 
-
-// // vector going from command module to theorical ideal sun direction. Magnitude is expected EC output not considering blocking bodies or parts.
-// sync fn ideal_exposure(vessel: Vessel) -> (exposure: Vec3, normal: Vec3) = {
-//     // OUT: No operational solar panel
-//     if (!vessel.parts.exists(fn(p) -> p.solar_panel.defined && p.deployable.value.deploy_state == DeployableDeployState.Extended)) // No operational solar panel
-//         return (exposure: vessel.global_up.to_local(vessel.control_frame), normal: vessel.global_facing.to_local(vessel.celestial_frame).vector)
-
-//     // Static solar panels
-//     const staticSolarPanels = vessel.parts
-//         .filter(fn(p) -> p.solar_panel.defined) // solar panel
-//         .filter(fn(p) -> p.deployable.value.deploy_state == DeployableDeployState.Extended && (!p.deployable.value.extendable)) // static
-
-//     const lightVectors = staticSolarPanels
-//         .map(fn(p) -> - p.global_rotation.to_local(vessel.control_frame).right_vector.normalized * p.solar_panel.value.base_flow_rate) // coaxial to light vector, mag = max EC flow
-
-//     const staticLightVector = lightVectors.reduce(vec3(0.0, 0.0, 0.0), fn(vsum, v) -> vsum + v)
-// ksp::console::CONSOLE.print_line("lightVectors: " + lightVectors.length.to_string())
-// ksp::console::CONSOLE.print_line("staticLightVector mag: " + staticLightVector.magnitude.to_string())
-
-//     const staticLightVectorNormalCase0 = staticSolarPanels
-//         .reduce(vec3(0.0, 0.0, 0.0), fn(sum, p) -> sum + p.global_rotation.to_local(vessel.control_frame).up_vector.normalized * p.solar_panel.value.base_flow_rate)
-//     const staticLightVectorNormalCase1 = staticSolarPanels
-//         .reduce(vec3(0.0, 0.0, 0.0), fn(sum, p) -> sum + p.global_rotation.to_local(vessel.control_frame).vector.normalized * p.solar_panel.value.base_flow_rate)
-//     const staticLightVectorNormal = staticLightVector.exclude_from(if(staticLightVectorNormalCase0.magnitude > staticLightVectorNormalCase1.magnitude) staticLightVectorNormalCase0 else staticLightVectorNormalCase1)
-
-//     // Rotary solar panels. Normals to lightplanes are used as definition of planes.
-//     const lightRotaries = vessel.parts
-//         .filter(fn(p) -> p.solar_panel.defined) // solar panel
-//         .filter(fn(p) -> p.deployable.value.deploy_state == DeployableDeployState.Extended && p.deployable.value.extendable) // rotary
-//         .map(fn(p) -> - p.global_rotation.to_local(vessel.control_frame).right_vector.normalized * p.solar_panel.value.base_flow_rate) // normal to light plane, mag = max EC flow
-// ksp::console::CONSOLE.print_line("lightRotaries: " + lightRotaries.length.to_string())
-
-//     // OUT: No rotary. Process only statics.
-//     if (lightRotaries.length == 0) {
-//         if(round_at(staticLightVector.magnitude, 1) == 0.0) {
-//             const sortedLightVectors = lightVectors
-//                 .sort_by(fn(v) -> v.magnitude)
-//                 .reverse()
-//             const usableLightVector = (0..(sortedLightVectors.length - 1))
-//                 .map(fn(i) -> sortedLightVectors[i])
-//                 .reduce(vec3(0.0,0.0,0.0), fn(vsum, v) -> vsum + v) // delete the least valuable
-// ksp::debug::DEBUG.add_vector(
-//     fn() -> vessel.command_modules[0].global_position,
-//     fn() -> staticLightVectorNormal.to_global(vessel.control_frame).normalized * 50,
-//     ksp::console::BLUE,
-//     "NORMAL",
-//     1)
-// ksp::console::CONSOLE.print_line("staticLightVector circle out")
-//             return (exposure: usableLightVector, normal: staticLightVectorNormal)
-
-//         }
-// ksp::console::CONSOLE.print_line("staticLightVector oriented out")
-// ksp::debug::DEBUG.add_vector(
-//     fn() -> vessel.command_modules[0].global_position,
-//     fn() -> staticLightVectorNormal.to_global(vessel.control_frame).normalized * 50,
-//     ksp::console::BLUE,
-//     "NORMAL",
-//     1)
-//         return (exposure: staticLightVector, normal: staticLightVectorNormal)
-//     }
-//     const lightCircles =
-//         if(round_at(staticLightVector.magnitude, 1) == 0.0 && lightVectors.length > 1) // process perfect circles of statics as a plane. Known issues : only 2 light vectors, or multiple circles.
-//             lightRotaries + lightVectors[0].cross(lightVectors[1]).normalized * lightVectors[0].magnitude
-//         else
-//             lightRotaries
-// ksp::console::CONSOLE.print_line("lightCircles: " + lightCircles.length.to_string())
-
-//     // sum parallels planes
-//     const lightPlanes = lightCircles.reduce(<Vec3>[], fn(notParallel, normal) -> {
-//         if(!notParallel.exists(fn(np) -> round_at(np.cross(normal).magnitude, 1) == 0.0)) // empty or not parallel
-//             return notParallel + normal
-//         return notParallel.map(fn(np) -> {
-//             if(round_at(np.cross(normal).magnitude, 1) == 0.0) // sum up all parallel planes
-//                 return np + (np.normalized.dot(normal.normalized) * normal)
-//             else
-//                 return np
-//         })
-//     })
-// ksp::console::CONSOLE.print_line("lightPlanes: " + lightPlanes.length.to_string())
-
-
-//     const intersectCount = (((lightPlanes.length - 1)**2) + (lightPlanes.length - 1)) / 2 // triangular number
-// ksp::console::CONSOLE.print_line("intersectCount: " + intersectCount.to_string())
-
-//     // OUT: Only 1 rotary. Process only statics + the rotary.
-//     if(intersectCount == 0) { // their is at least 1 plane. 0 plane case has alredy be processed
-// ksp::console::CONSOLE.print_line("lightPlanes mag: " + lightPlanes[0].magnitude.to_string())
-//         if(round_at(staticLightVector.magnitude, 1) != 0.0) {
-//             const rotaryLightVector = (staticLightVector - (lightPlanes[0].normalized * lightPlanes[0].dot(staticLightVector)))
-// ksp::console::CONSOLE.print_line("staticLightVector projected on the only plane out")
-// ksp::debug::DEBUG.add_vector(
-//     fn() -> vessel.command_modules[0].global_position,
-//     fn() -> staticLightVector.exclude_from(lightPlanes[0] + staticLightVectorNormal).to_global(vessel.control_frame).normalized,
-//     ksp::console::BLUE,
-//     "NORMAL",
-//     1)
-//             return (exposure: staticLightVector + rotaryLightVector, normal: staticLightVector.exclude_from(lightPlanes[0] + staticLightVectorNormal))
-//         }
-// ksp::console::CONSOLE.print_line("random vector from plane out")
-// ksp::debug::DEBUG.add_vector(
-//     fn() -> vessel.command_modules[0].global_position,
-//     fn() -> lightPlanes[0].to_global(vessel.control_frame).normalized,
-//     ksp::console::BLUE,
-//     "NORMAL",
-//     1)
-//         if(lightPlanes[0].dot(vec3(1.0, 0.0, 0.0)) != lightPlanes[0].magnitude)
-//             return (exposure: lightPlanes[0].cross(vec3(1.0, 0.0, 0.0)), normal: lightPlanes[0])
-//         return (exposure: lightPlanes[0].cross(vec3(0.0, 1.0, 0.0)), normal: lightPlanes[0])
-//     }
-
-//     const intersectPlanes = (0..(intersectCount))
-//         .map(fn(i) -> ((i + 1)..lightPlanes.length).map(fn(j) -> lightPlanes[i].cross(lightPlanes[j]).normalized * (lightPlanes[i].magnitude + lightPlanes[j].magnitude)))
-//         .reduce(<Vec3>[], fn(flat, arr_intersect) -> flat + arr_intersect) // intersect plane is best direction to light both light plane. Sum up all intersect.
-// ksp::console::CONSOLE.print_line("intersectPlanes: " + intersectPlanes.length.to_string())
-
-//     const allLightVector = intersectPlanes.reduce(vec3(0.0, 0.0, 0.0), fn(vsum, v) -> {
-//         if(round_at(staticLightVector.normalized.dot(v.normalized), 1) != 0.0)
-//             vsum + (v * (staticLightVector.normalized.dot(v.normalized)))
-//         else
-//             vsum + v
-//         }) + staticLightVector
-
-//     // OUT: All.
-// ksp::console::CONSOLE.print_line("full computed out")
-
-//     const allLightVectorNormalDirection = lightPlanes.reduce(vec3(0.0, 0.0, 0.0), fn(vsum, v) -> {
-//         if(round_at(staticLightVector.normalized.dot(v.normalized), 1) != 0.0)
-//             vsum + (v * (staticLightVector.normalized.dot(v.normalized)))
-//         else
-//             vsum + v
-//     })
-//     const allLightVectorNormal = allLightVector.exclude_from(allLightVectorNormalDirection)
-
-// ksp::debug::DEBUG.add_vector(
-//     fn() -> vessel.command_modules[0].global_position,
-//     fn() -> allLightVectorNormal.to_global(vessel.control_frame).normalized * 50,
-//     ksp::console::BLUE,
-//     "NORMAL",
-//     1)
-
-// // best normal = biggest intersect projected on plane defined by allLight vector
-//     return (exposure: allLightVector, normal: allLightVectorNormal)
-// }
-
-
-                    // if(round_at(abs(g.normalId.dot(partPair.normal)), precision) == round_at(abs(g.normalId.magnitude * partPair.normal.magnitude), precision)) {
-                    // if(round_at(abs(g.normalId.cross(partPair.normal).magnitude), precision) == 0.0 && round_at(g.normalId.magnitude, precision) == round_at(partPair.normal.magnitude, precision) && partPair.partA.part_name == partPair.partB.part_name && (
-                    //     round_at(partPair.partA.global_position.to_local(partPair.partA.vessel.control_frame).x, precision) == round_at(partPair.partB.global_position.to_local(partPair.partB.vessel.control_frame).x, precision)
-                    //     || round_at(partPair.partA.global_position.to_local(partPair.partA.vessel.control_frame).y, precision) == round_at(partPair.partB.global_position.to_local(partPair.partB.vessel.control_frame).y, precision)
-                    //     || round_at(partPair.partA.global_position.to_local(partPair.partA.vessel.control_frame).z, precision) == round_at(partPair.partB.global_position.to_local(partPair.partB.vessel.control_frame).z, precision)
-                    //     )) {
+// if(round_at(abs(g.normalId.dot(partPair.normal)), precision) == round_at(abs(g.normalId.magnitude * partPair.normal.magnitude), precision)) {
+// if(round_at(abs(g.normalId.cross(partPair.normal).magnitude), precision) == 0.0 && round_at(g.normalId.magnitude, precision) == round_at(partPair.normal.magnitude, precision) && partPair.partA.part_name == partPair.partB.part_name && (
+//     round_at(partPair.partA.global_position.to_local(partPair.partA.vessel.control_frame).x, precision) == round_at(partPair.partB.global_position.to_local(partPair.partB.vessel.control_frame).x, precision)
+//     || round_at(partPair.partA.global_position.to_local(partPair.partA.vessel.control_frame).y, precision) == round_at(partPair.partB.global_position.to_local(partPair.partB.vessel.control_frame).y, precision)
+//     || round_at(partPair.partA.global_position.to_local(partPair.partA.vessel.control_frame).z, precision) == round_at(partPair.partB.global_position.to_local(partPair.partB.vessel.control_frame).z, precision)
+//     )) {

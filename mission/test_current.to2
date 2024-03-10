@@ -34,14 +34,8 @@ pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
 
 
     const ship = Ship(vessel)
-    // sanitityCheck(ship)
     if(sanitityCheck(ship))
         takeOff(ship)
 
-    // for(t in 0..15) {
-    //     CONSOLE.print_line("vessel(" + t.to_string() + ") :" + vessel.parts.reduce(0.0, fn(sum, p) -> sum + p.total_mass).to_fixed(2))
-    //     CONSOLE.print_line("ship(" + t.to_string() + ") :" + ship.mass().to_fixed(2))
-    //     sleep(1)
-    // }
     CONSOLE.print_line(vessel.name + " end mission")
 }

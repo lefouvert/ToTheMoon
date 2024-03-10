@@ -1,0 +1,37 @@
+use { RgbaColor, color } from ksp::console
+
+pub const WHITE: RgbaColor = color(1.0, 1.0, 1.0, 1.0)
+pub const BLACK: RgbaColor = color(0.0, 0.0, 0.0, 1.0)
+pub const GREY: RgbaColor = color(0.5, 0.5, 0.5, 1.0)
+
+pub const RED: RgbaColor = color(1.0, 0.0, 0.0, 1.0)
+pub const GREEN: RgbaColor = color(0.0, 1.0, 0.0, 1.0)
+pub const BLUE: RgbaColor = color(0.0, 0.0, 1.0, 1.0)
+
+pub const YELLOW: RgbaColor = color(1.0, 1.0, 0.0, 1.0)
+pub const MAGENTA: RgbaColor = color(1.0, 0.0, 1.0, 1.0)
+pub const CYAN: RgbaColor = color(0.0, 1.0, 1.0, 1.0)
+
+pub const CRIMSON: RgbaColor = color(0.5, 0.0, 0.0, 1.0)
+pub const FOREST: RgbaColor = color(0.0, 0.5, 0.0, 1.0)
+pub const ULTRAMARINE: RgbaColor = color(0.0, 0.0, 0.5, 1.0)
+
+pub const OLIVE: RgbaColor = color(0.5, 0.5, 0.0, 1.0)
+pub const PURPLE: RgbaColor = color(0.5, 0.0, 0.5, 1.0)
+pub const TURQUOISE: RgbaColor = color(0.0, 0.5, 0.5, 1.0)
+
+pub const ORANGE: RgbaColor = color(1.0, 0.5, 0.0, 1.0)
+pub const FUCHSIA: RgbaColor = color(1.0, 0.0, 0.5, 1.0)
+pub const CORAL: RgbaColor = color(1.0, 0.5, 0.5, 1.0)
+
+pub const LIME: RgbaColor = color(0.5, 1.0, 0.0, 1.0)
+pub const MINT: RgbaColor = color(0.0, 1.0, 0.5, 1.0)
+pub const SPRING: RgbaColor = color(0.5, 1.0, 0.5, 1.0)
+
+pub const INDIGO: RgbaColor = color(0.5, 0.0, 1.0, 1.0)
+pub const ELECTRIC: RgbaColor = color(0.0, 0.5, 1.0, 1.0)
+pub const LAVENDER: RgbaColor = color(0.5, 0.5, 1.0, 1.0)
+
+pub const CITRUS: RgbaColor = color(1.0, 1.0, 0.5, 1.0)
+pub const MAUVE: RgbaColor = color(1.0, 0.5, 1.0, 1.0)
+pub const AQUA: RgbaColor = color(0.5, 1.0, 1.0, 1.0)

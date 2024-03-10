@@ -29,7 +29,7 @@ fn errorMessage(message: string, faultyResult: string = "", voidable: bool = fal
     return false
 }
 
-pub fn sanitityCheck(ship: Ship) -> bool = {
+pub fn sanitityCheck(ship: Ship) -> bool = { // TODO pub fn sanitityCheck(ship: Ship) -> Result<bool, string> = {
     const minimalOrbit = fast_orbit(ship.ship) 
     const requiredDeltaV = orbit_deltaV(ship.ship.orbit, minimalOrbit, ship.ship.altitude_scenery, minimalOrbit.periapsis)//3400.0 // TODO waiting to write orbits functions
     if(!requiredDeltaV.defined)
@@ -45,7 +45,6 @@ pub fn sanitityCheck(ship: Ship) -> bool = {
     CONSOLE.print_line("--------- Sanity Check --------")
     CONSOLE.print_line("Preparing take off from " + ship.ship.main_body.name + ".")
 
-    // if(!checkSystem(is_controlable, "command module existence"))
     if(!checkSystem(is_controlable, "command module presence"))
         if(!errorMessage("NO COMMAND MODULE"))
             return false
@@ -85,13 +84,10 @@ pub fn takeOff(ship: Ship) -> Unit = {
     ship.ship.actions.sas = true
     ship.ship.actions.rcs = false
     ship.ship.release_control()
-    // CONSOLE.print_line("thtt: " + min(Throttle.Max, (Twr.Ideal / ship.stages[ship.firstThrustStage().value].twr(ThrustSituation.CurrentAsOn))).to_string())
     ship.ship.set_throttle(min(Throttle.Max, (Twr.Ideal / ship.stages[ship.firstThrustStage().value].twr(ThrustSituation.CurrentAsOn))))
-// ksp::game::sleep(10.0)
     CONSOLE.print_line("-------- Flight events --------")
 
     ship.check_staging(false)
-    // ship.check_staging()
     ship.print("IGNITION.")
 
     wait_until(fn() -> ship.twr(ThrustSituation.Current) > Twr.Min)

@@ -6,7 +6,7 @@ use { AscentProfile } from maneuver::constant
 use { Ship } from ship::ship
 use { sanitityCheck, takeOff } from maneuver::takeof
 use { ascent } from maneuver::ascent
-use { fast_orbit, create_orbit, semiMajorAxis, orbitalToGeoLongitude } from body::orbit
+use { fast_orbit, create_orbit, semi_major_axis, orbitalToGeoLongitude } from body::orbit
 use { clear_altitude } from body::atmosphere
 
 /// Entry Point
@@ -181,8 +181,8 @@ for(m in todeploy.reverse()) {
 }
 
     return Ok({})
-    // const KerbinLowOrbit = create_orbit(vessel.main_body, clear_altitude(vessel.main_body), 30.0, semiMajorAxis(vessel.main_body, clear_altitude(vessel.main_body), clear_altitude(vessel.main_body) + 10000), orbitalToGeoLongitude(vessel.main_body, vessel.orbit.LAN), 0.0)
-    const KerbinLowOrbit = create_orbit(vessel.main_body, clear_altitude(vessel.main_body), 30.0, semiMajorAxis(vessel.main_body, clear_altitude(vessel.main_body), clear_altitude(vessel.main_body) + 10000), vessel.orbit.LAN, 0.0)
+    // const KerbinLowOrbit = create_orbit(vessel.main_body, clear_altitude(vessel.main_body), 30.0, semi_major_axis(vessel.main_body, clear_altitude(vessel.main_body), clear_altitude(vessel.main_body) + 10000), orbitalToGeoLongitude(vessel.main_body, vessel.orbit.LAN), 0.0)
+    const KerbinLowOrbit = create_orbit(vessel.main_body, clear_altitude(vessel.main_body), 30.0, semi_major_axis(vessel.main_body, clear_altitude(vessel.main_body), clear_altitude(vessel.main_body) + 10000), vessel.orbit.LAN, 0.0)
     // const KerbinLowOrbit = fast_orbit(vessel)
 
 

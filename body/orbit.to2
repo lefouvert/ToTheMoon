@@ -15,43 +15,38 @@ use { latitude_from_angle, expected_LAN } from ship::navigation
 use { clear_altitude, atmosphere_depth } from body::atmosphere
 
 
-pub sync fn g(body: Body, altitude: float) -> float = {
-    return body.grav_parameter / ((body.radius + altitude)**2)
-}
+pub sync fn g(body: Body, altitude: float) -> float =
+    body.grav_parameter / ((body.radius + altitude)**2)
 
-pub sync fn g0() -> float = {
-    return g(find_body("Kerbin").value, 0.0)
-}
+pub sync fn g0() -> float =
+    g(find_body("Kerbin").value, 0.0)
 
 pub sync fn visViva(body: Body, lookedAtAlt: float, semiMajorAxis: float) -> float = {
     if(semiMajorAxis <= 0)
         return 0.0
-    return sqrt(body.grav_parameter * ((2 / (body.radius + lookedAtAlt)) - (1 / semiMajorAxis)))
+    sqrt(body.grav_parameter * ((2 / (body.radius + lookedAtAlt)) - (1 / semiMajorAxis)))
 }
 
-pub sync fn semiMajorAxis(body: Body, periapsis: float, apoapsis: float) -> float = {
-    return (apoapsis + periapsis + 2 * body.radius) / 2
-}
+pub sync fn semi_major_axis(body: Body, periapsis: float, apoapsis: float) -> float =
+    (apoapsis + periapsis + 2 * body.radius) / 2
 
-pub sync fn semiMinorAxis(semiMajorAxis: float, eccentricity: float) -> float = {
-    return semiMajorAxis * sqrt(1 - (eccentricity**2))
-}
+pub sync fn semi_minor_axis(semiMajorAxis: float, eccentricity: float) -> float =
+    semiMajorAxis * sqrt(1 - (eccentricity**2))
+
 
 sync fn mean_anomaly(trueAnomaly: float, eccentricity: float) -> float = { // RADIAN
     const eccentricAnomaly = acos_deg( (eccentricity + cos_deg(trueAnomaly)) / (1 + (eccentricity * cos_deg(trueAnomaly))) )
-    return eccentricAnomaly - (eccentricity * sin_deg(eccentricAnomaly))
+    eccentricAnomaly - (eccentricity * sin_deg(eccentricAnomaly))
 }
 
-sync fn mean_motion(gravParam: float, semiMajorAxis: float) -> float = { // RADIAN
-    return sqrt(gravParam / (semiMajorAxis**3))
-}
+sync fn mean_motion(gravParam: float, semiMajorAxis: float) -> float =
+    sqrt(gravParam / (semiMajorAxis**3)) // RADIAN
 
 pub sync fn radius_true_anomaly(trueAnomaly: float, semiMajorAxis: float, semiMinorAxis: float) -> float = {
     const c = sqrt((semiMajorAxis**2) - (semiMinorAxis**2))
     const e = c / semiMajorAxis
     const p = semiMajorAxis * (1 - (e**2))
-    const r = p / (1 + e * cos_deg(trueAnomaly))
-    return r
+    p / (1 + e * cos_deg(trueAnomaly))
 }
 
 sync fn prograde_slope(trueAnomaly: float, semiMajorAxis: float, semiMinorAxis: float) -> float = {
@@ -66,13 +61,11 @@ sync fn prograde_slope(trueAnomaly: float, semiMajorAxis: float, semiMinorAxis: 
     const r = radius_true_anomaly(trueAnomaly, semiMajorAxis, semiMinorAxis)
     const x = r * cos_deg(theta) - c
     const y = r * sin_deg(theta)
-    // const slope = -(semiMinorAxis**2 * x) / (semiMajorAxis**2 * y)
-    return atan2_deg((semiMinorAxis**2) * x, (semiMajorAxis**2) * y)
+    atan2_deg((semiMinorAxis**2) * x, (semiMajorAxis**2) * y)
 }
 
-pub sync fn prograde_elevation(trueAnomaly: float, semiMajorAxis: float, semiMinorAxis: float) -> float = {
-    return trueAnomaly - Circle.Quarter - prograde_slope(trueAnomaly, semiMajorAxis, semiMinorAxis)
-}
+pub sync fn prograde_elevation(trueAnomaly: float, semiMajorAxis: float, semiMinorAxis: float) -> float =
+    trueAnomaly - Circle.Quarter - prograde_slope(trueAnomaly, semiMajorAxis, semiMinorAxis)
 
 pub sync fn create_orbit(body: Body, periapsis: float, inclination: float, semiMajorAxis: float, longitudeOfAscendingNode:float, argumentOfPeriapsis: float) -> Orbit = {
     const correctedLongitudeOfAscendingNode = if(clamp_degrees180(inclination) < Circle.None) longitudeOfAscendingNode + Circle.Semi else longitudeOfAscendingNode
@@ -93,22 +86,21 @@ pub sync fn create_orbit(body: Body, periapsis: float, inclination: float, semiM
     const velocityDirectionVec = (normalToOrbitalPlanVector.cross(periapsisVector)).normalized
     const velocity = velocityDirectionVec * visViva(body, periapsis, semiMajorAxis)
 
-    return body.create_orbit(position, velocity, current_time())
+    body.create_orbit(position, velocity, current_time())
 }
 
 //  build a circular orbit at (atmosphere depth + 10km) at the lowest inclination able by the latitude above current position
-pub sync fn fast_orbit(vessel: Vessel) -> Orbit = {
-    return create_orbit(vessel.main_body, clear_altitude(vessel.main_body), vessel.geo_coordinates.latitude, semiMajorAxis(vessel.main_body, clear_altitude(vessel.main_body), clear_altitude(vessel.main_body)), expected_LAN(vessel.geo_coordinates, vessel.geo_coordinates.latitude).value, 0.0)
-}
+pub sync fn fast_orbit(vessel: Vessel) -> Orbit =
+    create_orbit(vessel.main_body, clear_altitude(vessel.main_body), vessel.geo_coordinates.latitude, semi_major_axis(vessel.main_body, clear_altitude(vessel.main_body), clear_altitude(vessel.main_body)), expected_LAN(vessel.geo_coordinates, vessel.geo_coordinates.latitude).value, 0.0)
 
 pub sync fn orbitalToGeoLongitude(body: Body, longitude: float) -> float = {
     const OriginShift = clamp_degrees360(current_time() * body.angular_velocity.magnitude * RAD_TO_DEG)
-    return clamp_degrees360(longitude - OriginShift)
+    clamp_degrees360(longitude - OriginShift)
 } // TODO Check revelancy of this data
 
 pub sync fn geoToOrbitalLongitude(body: Body, longitude: float) -> float = {
     const OriginShift = clamp_degrees360(current_time() * body.angular_velocity.magnitude * RAD_TO_DEG)
-    return clamp_degrees360(longitude + OriginShift)
+    clamp_degrees360(longitude + OriginShift)
 } // TODO Check revelancy of this data
 
 // TODO time to ascending node
@@ -125,7 +117,7 @@ pub sync fn orbit_deltaV(startObt: Orbit, endObt: Orbit, startAlt: float, endAlt
     const endSpeed = visViva(endObt.reference_body, endAlt, endObt.semi_major_axis)
     const theta = abs(endObt.inclination - startObt.inclination)
     const deltaVLossless = sqrt((startSpeed**2) + (endSpeed**2) - 2 * startSpeed * endSpeed * cos_deg(theta))
-    return deltaVLossless
+    deltaVLossless
 } // TODO YAGNI
 
 pub sync fn param_deltaV(startObt: Orbit, targetSemiMajorAxis: float, targetInclination: float, startAlt: float, endAlt: float) -> float = {
@@ -142,7 +134,7 @@ pub sync fn param_deltaV(startObt: Orbit, targetSemiMajorAxis: float, targetIncl
 // ksp::console::CONSOLE.print_at(27, 50, "altI".pad_right(7) + " : " + startAlt.to_fixed(2).pad_left(6))
 // ksp::console::CONSOLE.print_at(27, 70, "altF".pad_right(7) + " : " + endAlt.to_fixed(2).pad_left(6))
 
-    return deltaVLossless
+    deltaVLossless
 }
 
 // TODO deltaVAtmosphericLosses()
@@ -152,12 +144,12 @@ pub sync fn eta_trueAnomaly(obt: Orbit, trueAnomaly: float) -> float = {
     const meanMotion = mean_motion(obt.reference_body.grav_parameter, obt.semi_major_axis) // radian
     const ageTrueAnomalyAtEpoch = ((meanAnomaly - (obt.mean_anomaly_at_epoch)) / meanMotion) + obt.epoch
     const agePeriodATAAE = ageTrueAnomalyAtEpoch - current_time()
-    return ((agePeriodATAAE % obt.period) + obt.period) % obt.period
+    ((agePeriodATAAE % obt.period) + obt.period) % obt.period
 }
 
 pub sync fn resonant_orbit_min_LOS(body: Body, satNumber: int) -> float = {
     const AltLossLOS = body.radius + atmosphere_depth(body)
-    return (AltLossLOS / cos_deg(Circle.Semi / satNumber.to_float)) - AltLossLOS
+    (AltLossLOS / cos_deg(Circle.Semi / satNumber.to_float)) - AltLossLOS
 }
 
 pub sync fn resonant_orbit(body: Body, satAlt: float, satNumber: int, dive: bool = false) -> float = {
@@ -170,5 +162,5 @@ pub sync fn resonant_orbit(body: Body, satAlt: float, satNumber: int, dive: bool
         else
             satMeanMotion * satNumber.to_float / (satNumber.to_float + 1.0)
     const launcherSemiMajorAxis = ((1.0 / ((launcherMeanMotion**2) / body.grav_parameter))**(1.0/3.0)) // **1/3 equivalant to cubicroot
-    return launcherSemiMajorAxis * 2 - 2 * body.radius - satAlt
+    launcherSemiMajorAxis * 2 - 2 * body.radius - satAlt
 }

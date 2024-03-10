@@ -12,13 +12,10 @@ use { Circle, Sign } from math::constant
 use { Stage } from ship::stage
 use { Ship } from ship::ship
 use { Pid } from math::tool
-use { visViva, semiMajorAxis } from body::orbit
+use { visViva, semi_major_axis } from body::orbit
 use { clear_altitude, atmosphere_depth } from body::atmosphere
 use { ascent_angle, latitude_from_angle, deviation, compassFromDirection, compassFromOrbit } from ship::navigation
 use { engineeringNotation } from ui::unit
-
-// const maxT:Cell<float> = Cell(0.0) // TODO delete
-// const maxQ:Cell<float> = Cell(0.0) // TODO delete
 
 sync fn direction_manager(ship: Ship, obt: Orbit, profile: AscentProfileConst) -> Direction = {
     const vessel = ship.ship
@@ -26,7 +23,7 @@ sync fn direction_manager(ship: Ship, obt: Orbit, profile: AscentProfileConst) -
     const azimuthTarget = compassFromOrbit(vessel, obt)
 
     const actualHorizontalSpeed = vessel.up.exclude_from(vessel.orbital_velocity).magnitude
-    const targetHorizontalSpeed = visViva(vessel.main_body, vessel.altitude_sealevel, semiMajorAxis(vessel.main_body, vessel.orbit.periapsis, obt.periapsis))// wrong but operational
+    const targetHorizontalSpeed = visViva(vessel.main_body, vessel.altitude_sealevel, semi_major_axis(vessel.main_body, vessel.orbit.periapsis, obt.periapsis))// wrong but operational
     const headway = clamp(actualHorizontalSpeed / targetHorizontalSpeed, 0, 1)
 
     // inclination better than azimuth because of true anomaly difference
@@ -35,15 +32,10 @@ sync fn direction_manager(ship: Ship, obt: Orbit, profile: AscentProfileConst) -
             Circle.None
         else
             clamp_degrees180(obt.inclination - vessel.orbit.inclination)
-            // angle_delta(obt.inclination, vessel.orbit.inclination)
 
     const uTurnSoftener = clamp(abs(sin_deg(inclinationDifference)), cos_deg(inclinationDifference), 1)
     const azimuthCorrection = (Circle.Semi * headway) * (-inclinationDifference * uTurnSoftener / (Circle.Quarter / 2)) // Circle.Semi and (Circle.Quarter / 2) are arbitrary to pump up azimuthCorrection
 
-// if(maxT.value < vessel.total_torque.magnitude)
-//     maxT.value = vessel.total_torque.magnitude
-// if(maxQ.value < vessel.dynamic_pressure_kpa)
-//     maxQ.value = vessel.dynamic_pressure_kpa
 // ksp::console::CONSOLE.print_at(14, 50, "torque".pad_right(7) + " : " + vessel.total_torque.magnitude.to_fixed(2).pad_left(6))
 // ksp::console::CONSOLE.print_at(14, 70, "maxT".pad_right(7) + " : " + maxT.value.to_fixed(2).pad_left(6))
 // ksp::console::CONSOLE.print_at(15, 50, "staPres".pad_right(7) + " : " + vessel.static_pressure_kpa.to_fixed(2).pad_left(6))
@@ -83,15 +75,10 @@ pub fn ascent (ship : Ship, obt: Orbit, profile: AscentProfileConst = AscentProf
         }
         vessel.autopilot.target_orientation = direction_manager(ship, obt, profile).vector
 
-// ksp::debug::DEBUG.add_vector(fn() -> vessel.global_position, fn() -> vessel.total_torque.to_global(vessel.body_frame), ksp::console::RED, "torque", 1)
-
-        // body::debug::orbit_debug(vessel, obt)
-
         if (ship.deltaV() < 1)
             return Err("Not enought fuel to reach a " + engineeringNotation(obt.periapsis) + "m. suborbital flight above " + obt.reference_body.name)
 
     }
     tmanager.release()
-// TODO write deploy
     ship.print_status()
 }
