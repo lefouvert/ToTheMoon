@@ -687,9 +687,12 @@ sync fn ideal_exposure(vessel: Vessel) -> (exposure: Vec3, normal: Vec3) = {
         return (exposure: staticLightVector + rotaryLightVector, normal: staticLightVector.exclude_from(lightPlanes[Array.First] + random_normal(trueStatic)))
     }
 
-    const intersectPlanes = (0..intersectCount)
+    // const intersectPlanes = (0..intersectCount)
+    const intersectPlanes = (0..lightPlanes.length)
         .map(fn(i) -> ((i + 1)..lightPlanes.length).map(fn(j) -> lightPlanes[i].cross(lightPlanes[j]).normalized * (lightPlanes[i].magnitude + lightPlanes[j].magnitude)))
-        .reduce(<Vec3>[], fn(flat, arr_intersect) -> flat + arr_intersect) // intersect plane is best direction to light both light plane. Sum up all intersect.
+        .flat_map(fn(arr_intersect) -> arr_intersect) // intersect plane is best direction to light both light plane. Sum up all intersect.
+        // .reduce(<Vec3>[], fn(flat, arr_intersect) -> flat + arr_intersect) // intersect plane is best direction to light both light plane. Sum up all intersect.
+ksp::console::CONSOLE.print_line("intersectPlanes.lenght: " + intersectPlanes.length.to_string())
 
     const allLightVector = fasten_sum_unoriented_vectors(intersectPlanes, staticLightVector) + staticLightVector
     const allLightVectorNormal = allLightVector.exclude_from(fasten_sum_unoriented_vectors(lightPlanes, staticLightVector))
@@ -697,7 +700,6 @@ sync fn ideal_exposure(vessel: Vessel) -> (exposure: Vec3, normal: Vec3) = {
     // OUT: All.
 // ksp::console::CONSOLE.print_line("OUT : All.")
     (exposure: allLightVector, normal: allLightVectorNormal)
-    // return (exposure: vec3(0,0,0), normal: vec3(0,0,0))
 }
 
 sync fn group_statics_as_rotaries(staticSolarPanels: Part[]) -> Part[][] = {

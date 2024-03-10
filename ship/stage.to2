@@ -45,14 +45,15 @@ impl Stage {
     sync fn empty(self) -> bool =
         (self.engines.activation.length > self.engines.decouple.length && self.partial_flameout())
 
-    sync fn thrust(self, context: ThrustSituationConst = ThrustSituation.Current) -> float =
+    sync fn thrust(self, context: ThrustSituationConst = ThrustSituation.Current) -> float = {
+        const vessel = self.ship // have to set the variable as 'const' to be used in sync context
         self.engines.activation
             .reduce(0.0, fn(sum, p) -> {
                 if (context == ThrustSituation.Current)
                     sum + p.engine_module.value.current_thrust
                 else if (context == ThrustSituation.CurrentAsOn
                     || (context == ThrustSituation.Min && p.engine_module.value.current_engine_mode.throttle_locked))
-                    sum + atm_influence(self.ship, p)
+                    sum + atm_influence(vessel, p)
                 else if (context == ThrustSituation.Max_Vac)
                     sum + p.engine_module.value.max_thrust_output_vac
                 else if (context == ThrustSituation.Max_Atm)
@@ -62,8 +63,7 @@ impl Stage {
                 else
                     sum
             })
-
-
+}
 
     sync fn isp(self, context: ThrustSituationConst = ThrustSituation.CurrentAsOn) -> float = {
         const body = self.ship.main_body
