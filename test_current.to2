@@ -14,6 +14,10 @@ pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
     ksp::console::CONSOLE.clear()
     const ship = Ship(vessel)
 
+vessel.manage_steering(fn(whatever) -> ksp::math::vec3(0.5, 0.0, 0.0))
+ksp::game::sleep(10)
+// return Ok({})
+
 vessel.parts
     .filter(fn(p) -> p.is_cargo_bay)
     .map(fn(p) -> ksp::console::CONSOLE.print_line("cargo: " + p.part_name))

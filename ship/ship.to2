@@ -6,7 +6,7 @@ use { min, max, clamp, abs, MIN_FLOAT, log, clamp_degrees360 } from core::math
 use { ExperimentState, Experiment, ResearchLocation, ResearchReport, ScienceSituation } from ksp::science
 use { CONSOLE } from ksp::console
 
-use { ThrustSituation, ThrustSituationConst, MassState, MassStateConst, Case, Throttle, Resource } from ship::constant
+use { ThrustSituation, ThrustSituationConst, MassState, MassStateConst, StagingCase, Throttle, Resource } from ship::constant
 use { InsignificantAtmoshpere } from body::constant
 use { Circle, Array } from math::constant
 use { Stage } from ship::stage
@@ -143,20 +143,6 @@ impl Ship {
     fn park(self) -> bool = {
         const vessel = self.ship
 
-        // let referenceBody = vessel.orbit.reference_body
-        // while(referenceBody.parent_body.defined)
-        //     referenceBody = referenceBody.parent_body.value
-        // const star = referenceBody
-        // const starVec = star.global_position.to_local(vessel.celestial_frame)
-
-        // let referenceBody = vessel.orbit.reference_body
-        // if(referenceBody.parent_body.defined) {
-        //     while(referenceBody.parent_body.value.parent_body.defined)
-        //         referenceBody = referenceBody.parent_body.value
-        // }
-        // const starVector = referenceBody.parent_body.global_position.to_local(vessel.celestial_frame)
-        // const orbitNormal = referenceBody.orbit.orbit_normal
-
         let referenceOrbit = vessel.orbit
         while(referenceOrbit.reference_body.parent_body.defined)
             referenceOrbit = referenceOrbit.reference_body.orbit
@@ -166,58 +152,113 @@ impl Ship {
 ksp::console::CONSOLE.print_line("star: " + referenceOrbit.reference_body.name)
 
 
+self.align(self.prograde().vector)
         const exposureDefinition = ideal_exposure(self.ship)
 ksp::console::CONSOLE.print_line("exposure magnitude: " + exposureDefinition.exposure.magnitude.to_string())
 
-        const starIdealPosition = exposureDefinition.exposure
-        const orbitNormalIdealPosition = exposureDefinition.normal
+// WANTED : align ideal_exposure(self.ship).exposure with starVector and ideal_exposure(self.ship).normal with orbitNormal
 
-        const starIdealPositionPolar = cartesian_to_polar(starIdealPosition)
-        const orbitNormalIdealPositionPolar = cartesian_to_polar(orbitNormalIdealPosition)
+//         const starIdealPosition = exposureDefinition.exposure
+//         const orbitNormalIdealPosition = exposureDefinition.normal
+
+//         const starIdealPositionPolar = cartesian_to_polar(starIdealPosition)
+//         const orbitNormalIdealPositionPolar = cartesian_to_polar(orbitNormalIdealPosition)
 
         const facingPolar = cartesian_to_polar(vessel.global_facing.to_local(vessel.celestial_frame).vector)
-        const starPolar = cartesian_to_polar(starVector)
-        const upPolar = cartesian_to_polar(vessel.global_up.to_local(vessel.celestial_frame))
-        const orbitNormalPolar = cartesian_to_polar(orbitNormal)
+//         const starPolar = cartesian_to_polar(starVector)
+//         const upPolar = cartesian_to_polar(vessel.global_up.to_local(vessel.celestial_frame))
+//         const orbitNormalPolar = cartesian_to_polar(orbitNormal)
 
-        const deltaFacingPolar = vec2(clamp_degrees360(starIdealPositionPolar.y - facingPolar.y), clamp_degrees360(starIdealPositionPolar.z - facingPolar.z))
-        const deltaUpPolar = vec2(clamp_degrees360(orbitNormalIdealPositionPolar.y - upPolar.y), clamp_degrees360(orbitNormalIdealPositionPolar.z - upPolar.z))
-ksp::console::CONSOLE.print_line("deltaFacing: [" + deltaFacingPolar.x.to_string() + ", " + deltaFacingPolar.y.to_string() + "]")
+//         const deltaFacingPolar = vec2(clamp_degrees360(starIdealPositionPolar.y - facingPolar.y), clamp_degrees360(starIdealPositionPolar.z - facingPolar.z))
+//         const deltaUpPolar = vec2(clamp_degrees360(orbitNormalIdealPositionPolar.y - upPolar.y), clamp_degrees360(orbitNormalIdealPositionPolar.z - upPolar.z))
+// ksp::console::CONSOLE.print_line("deltaFacing: [" + deltaFacingPolar.x.to_string() + ", " + deltaFacingPolar.y.to_string() + "]")
 
-        const fakeStarPolar = vec3(starPolar.x, clamp_degrees360(starPolar.y + deltaFacingPolar.x), clamp_degrees360(starPolar.z - deltaFacingPolar.y))
-        const fakeStar = polar_to_cartesian(fakeStarPolar)
-        const fakeOrbitNormalPolar = vec3(orbitNormalPolar.x, clamp_degrees360(orbitNormalPolar.y + deltaUpPolar.x), clamp_degrees360(orbitNormalPolar.z - deltaUpPolar.y))
-        const fakeOrbitNormal = polar_to_cartesian(fakeOrbitNormalPolar)
+//         const fakeStarPolar = vec3(starPolar.x, clamp_degrees360(starPolar.y + deltaFacingPolar.x), clamp_degrees360(starPolar.z + deltaFacingPolar.y))
+//         const fakeStar = polar_to_cartesian(fakeStarPolar)
+//         const fakeOrbitNormalPolar = vec3(orbitNormalPolar.x, clamp_degrees360(orbitNormalPolar.y + deltaUpPolar.x), clamp_degrees360(orbitNormalPolar.z - deltaUpPolar.y))
+//         const fakeOrbitNormal = polar_to_cartesian(fakeOrbitNormalPolar)
 
+
+// // const testdir0 = ksp::math::from_vector_to_vector(exposureDefinition.exposure, starVector)
+// // ksp::console::CONSOLE.print_line("testdir: " + testdir0.to_string())
+// // const testdir1 = ksp::math::from_vector_to_vector(exposureDefinition.normal, orbitNormal)
+// // ksp::console::CONSOLE.print_line("testdir: " + testdir1.to_string())
 
         // const teststeer = fn() -> {
-        //     const ideal = ideal_exposure(self.ship)
-        //     const testdir = ksp::math::from_vector_to_vector(starVector, ideal.exposure)
-        //     return vec3(testdir.pitch, testdir.yaw, ideal.normal.angle_to(orbitNormal))
+        //     const testdir2 = ksp::math::from_vector_to_vector(orbitNormal, ideal_exposure(self.ship).exposure)
+        //     ksp::console::CONSOLE.print_at(15, 15, $"pitch: {core::math::clamp_degrees180(testdir2.pitch),5:N2}|sin(p): {core::math::sin_deg(testdir2.pitch),5:N2}")
+        //     ksp::console::CONSOLE.print_at(16, 15, $"yaw: {core::math::clamp_degrees180(testdir2.yaw),5:N2}|sin(y): {core::math::sin_deg(testdir2.yaw),5:N2}")
+        //     ksp::console::CONSOLE.print_at(17, 15, $"roll: {core::math::clamp_degrees180(testdir2.roll),5:N2}|sin(r): {core::math::sin_deg(testdir2.roll),5:N2}")
+        //     return vec3(core::math::sin_deg(testdir2.pitch), core::math::sin_deg(testdir2.yaw), 0.0)
+        //     // align best exposure on obtNor
         // }
 
-        // vessel.manage_steering(fn(whatever: float) -> teststeer())
+        // const teststeer = fn() -> {
+        //     const testdir0 = ksp::math::from_vector_to_vector(starVector, ideal_exposure(self.ship).exposure)
+        //     ksp::console::CONSOLE.print_at(15, 15, $"pitch: {core::math::clamp_degrees180(testdir0.pitch),5:N2}|sin(p): {core::math::sin_deg(testdir0.pitch),5:N2}")
+        //     ksp::console::CONSOLE.print_at(16, 15, $"yaw: {core::math::clamp_degrees180(testdir0.yaw),5:N2}|sin(y): {core::math::sin_deg(testdir0.yaw),5:N2}")
+        //     ksp::console::CONSOLE.print_at(17, 15, $"roll: {core::math::clamp_degrees180(testdir0.roll),5:N2}|sin(r): {core::math::sin_deg(testdir0.roll),5:N2}")
+        //     return vec3(core::math::sin_deg(testdir0.pitch), core::math::sin_deg(testdir0.yaw), 0.0)
+        //     // align best exposure on obtNor TOO
+        // }
+
+        // const teststeer = fn() -> {
+        //     const testdir0 = ksp::math::from_vector_to_vector(starVector, ideal_exposure(self.ship).normal)
+        //     ksp::console::CONSOLE.print_at(15, 15, $"pitch: {core::math::clamp_degrees180(testdir0.pitch),5:N2}|sin(p): {core::math::sin_deg(testdir0.pitch),5:N2}")
+        //     ksp::console::CONSOLE.print_at(16, 15, $"yaw: {core::math::clamp_degrees180(testdir0.yaw),5:N2}|sin(y): {core::math::sin_deg(testdir0.yaw),5:N2}")
+        //     ksp::console::CONSOLE.print_at(17, 15, $"roll: {core::math::clamp_degrees180(testdir0.roll),5:N2}|sin(r): {core::math::sin_deg(testdir0.roll),5:N2}")
+        //     return vec3(core::math::sin_deg(testdir0.pitch), core::math::sin_deg(testdir0.yaw), 0.0)
+        //     // align best normal on sun and TRY to align best exposure with anti-otbNor (start with gimbal lock on best exposure align on Sun^ObtNor) TOO
+        // }
+
+        const teststeer = fn() -> {
+            const testdir0 = ksp::math::from_vector_to_vector(starVector.cross(orbitNormal), ideal_exposure(self.ship).exposure.cross(ideal_exposure(self.ship).normal))
+            ksp::console::CONSOLE.print_at(15, 15, $"pitch: {core::math::clamp_degrees180(testdir0.pitch),5:N2}|sin(p): {core::math::sin_deg(testdir0.pitch),5:N2}")
+            ksp::console::CONSOLE.print_at(16, 15, $"yaw: {core::math::clamp_degrees180(testdir0.yaw),5:N2}|cos(y): {core::math::cos_deg(testdir0.yaw),5:N2}")
+            ksp::console::CONSOLE.print_at(17, 15, $"roll: {core::math::clamp_degrees180(testdir0.roll),5:N2}|sin(r): {core::math::sin_deg(testdir0.roll),5:N2}")
+            return vec3(core::math::sin_deg(testdir0.pitch), core::math::cos_deg(testdir0.yaw), 0.0)
+            // TRY to align best normal with anti-sun and best exposure lost between obtnorm and anti-obtnorm
+        }
+
+        const teststeerJUNK = fn() -> {
+            // const ideal = ideal_exposure(self.ship)
+            // const testdir = ksp::math::from_vector_to_vector(starVector, ideal.exposure)
+            // const testdir0 = ksp::math::from_vector_to_vector(ideal_exposure(self.ship).exposure, starVector)
+            // const testdir1 = ksp::math::from_vector_to_vector(ideal_exposure(self.ship).normal, orbitNormal)
+            const testdir0 = ksp::math::from_vector_to_vector(starVector, ideal_exposure(self.ship).exposure)
+            const testdir1 = ksp::math::from_vector_to_vector(orbitNormal, ideal_exposure(self.ship).normal)
+            const testdir2 = ksp::math::from_vector_to_vector(orbitNormal, ideal_exposure(self.ship).exposure)
+            // return vec3(core::math::acos_deg(testdir0.pitch), core::math::asin_deg(testdir0.yaw), core::math::atan2_deg(testdir1.yaw, testdir1.pitch))
+            ksp::console::CONSOLE.print_at(15, 15, $"pitch: {core::math::clamp_degrees180(testdir0.pitch),5:N2}|sin(p): {core::math::sin_deg(testdir0.pitch),5:N2}")
+            ksp::console::CONSOLE.print_at(16, 15, $"yaw: {core::math::clamp_degrees180(testdir0.yaw),5:N2}|sin(y): {core::math::sin_deg(testdir0.yaw),5:N2}")
+            ksp::console::CONSOLE.print_at(17, 15, $"roll: {core::math::clamp_degrees180(testdir0.roll),5:N2}|sin(r): {core::math::sin_deg(testdir0.roll),5:N2}")
+            // return vec3(core::math::sin_deg(testdir0.pitch), core::math::sin_deg(testdir0.yaw), core::math::sin_deg(testdir0.roll))
+            // return vec3(core::math::sin_deg(testdir0.pitch), core::math::sin_deg(testdir0.yaw), core::math::cos_deg(testdir0.roll))
+            return vec3(core::math::sin_deg(testdir2.pitch), core::math::sin_deg(testdir2.yaw), 0.0)
+            // return vec3(core::math::sin_deg(testdir0.yaw), core::math::sin_deg(testdir0.pitch), 0.0)
+            // return vec3(core::math::clamp_degrees180(testdir0.pitch) / Circle.Semi, core::math::clamp_degrees180(testdir0.yaw) / Circle.Semi, 0.0)
+        }
 
 ksp::debug::DEBUG.add_vector(
     fn() -> vessel.command_modules[Array.First].part.global_position,
-    fn() -> exposureDefinition.exposure.to_global(vessel.celestial_frame).normalized * 50,
+    fn() -> exposureDefinition.exposure.to_global(vessel.celestial_frame).normalized * 25,
     ui::constant::ULTRAMARINE,
     "initial best exposure",
-    1)
+    2)
 
 ksp::debug::DEBUG.add_vector(
     fn() -> vessel.command_modules[Array.First].part.global_position,
-    fn() -> exposureDefinition.normal.to_global(vessel.celestial_frame).normalized * 50,
+    fn() -> exposureDefinition.normal.to_global(vessel.celestial_frame).normalized * 25,
     ui::constant::GREY,
     "initial best normal",
-    1)
+    2)
 
 ksp::debug::DEBUG.add_vector(
     fn() -> vessel.command_modules[Array.First].part.global_position,
-    fn() -> polar_to_cartesian(facingPolar).to_global(vessel.celestial_frame) * 50,
+    fn() -> polar_to_cartesian(facingPolar).to_global(vessel.celestial_frame) * 25,
     ui::constant::CRIMSON,
     "initial facing",
-    1)
+    2)
 
 ksp::debug::DEBUG.add_vector(
     fn() -> vessel.command_modules[Array.First].part.global_position,
@@ -246,39 +287,40 @@ ksp::debug::DEBUG.add_vector(
     fn() -> orbitNormal.to_global(vessel.celestial_frame).normalized * 75,
     ui::constant::GREEN,
     "ObtNormal",
-    1)
+    0.5)
 
-ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[Array.First].part.global_position,
-    fn() -> fakeOrbitNormal.to_global(vessel.celestial_frame).normalized * 50,
-    ui::constant::FOREST,
-    "ObtNormal'",
-    1)
+// ksp::debug::DEBUG.add_vector(
+//     fn() -> vessel.command_modules[Array.First].part.global_position,
+//     fn() -> fakeOrbitNormal.to_global(vessel.celestial_frame).normalized * 50,
+//     ui::constant::FOREST,
+//     "ObtNormal'",
+//     1)
 
 // ideal exposure have to aim
 ksp::debug::DEBUG.add_vector(
     fn() -> vessel.command_modules[Array.First].part.global_position,
     fn() -> starVector.to_global(vessel.celestial_frame).normalized * 75,
-    // fn() -> starVec().to_global(vessel.control_frame).normalized * 50,
     ui::constant::YELLOW,
-    // ksp::console::color(1.0, 1.0, 0.0, 1.0),
     "Kerbol",
-    1)
+    0.5)
 
-ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[Array.First].part.global_position,
-    fn() -> fakeStar.to_global(vessel.celestial_frame).normalized * 50,
-    // fn() -> starVec().to_global(vessel.control_frame).normalized * 50,
-    ui::constant::ORANGE,
-    // ksp::console::color(1.0, 0.5, 0.0, 1.0),
-    "Kerbol'",
-    1)
+// ksp::debug::DEBUG.add_vector(
+//     fn() -> vessel.command_modules[Array.First].part.global_position,
+//     fn() -> fakeStar.to_global(vessel.celestial_frame).normalized * 50,
+//     // fn() -> starVec().to_global(vessel.control_frame).normalized * 50,
+//     ui::constant::ORANGE,
+//     // ksp::console::color(1.0, 0.5, 0.0, 1.0),
+//     "Kerbol'",
+//     1)
 
-self.align(fakeStar)
+        vessel.manage_steering(fn(whatever: float) -> teststeer())
+ksp::game::sleep(180)
+vessel.release_control()
+// self.align(fakeStar)
 // self.align(vessel.orbit.orbit_normal)
-ksp::game::sleep(120)
         // return self.align(fakeStar)
-        return self.align(vessel.orbit.orbit_normal)
+        // return self.align(vessel.orbit.orbit_normal)
+        return true
     }
 
     fn dock(self, vessel: Vessel) -> bool = {
@@ -323,11 +365,11 @@ ksp::game::sleep(120)
         if(Some(shipLocation) = vessel.research_location) {
             const newExperiments = vessel.parts
                 .filter(fn(p) -> p.science_experiment.defined)
-                .map(fn(p) -> p.science_experiment.value.experiments
+                .flat_map(fn(p) -> p.science_experiment.value.experiments
                     .filter(fn(e) -> e.current_experiment_state == ExperimentState.READY
                         && e.current_experiment_state != ExperimentState.ALREADYSTORED
                         && ((!e.experiment_location.defined) || (!locationComparison(e.experiment_location.value, shipLocation))))
-                ).flat_map(fn(e) -> e)
+                )//.flat_map(fn(e) -> e)
                 // .filter(fn(e) -> !storedReports.exists(fn(r) -> r.definition.id == e.definition.id && (locationComparison(r.research_location, shipLocation)))) // To not research already known datascience.
             run_science(self, newExperiments, verbose)
         }
@@ -597,7 +639,7 @@ fn stage(ship: Ship, trigger: (need: bool, reason: string)[], verbose: bool) -> 
     if(vessel.dynamic_pressure_kpa > 1)
         sleep(1.0)
 
-    if(trigger[Case.NOT_IGN].need)
+    if(trigger[StagingCase.NOT_IGN].need)
         wait_until(fn() -> ship.stages[ship.current_stage].ignited())
 
     wait_until(fn() -> ship.update_stages("check_stage"))
@@ -686,11 +728,12 @@ sync fn ideal_exposure(vessel: Vessel) -> (exposure: Vec3, normal: Vec3) = {
                 lightPlanes[Array.First].cross(vec3(0.0, 1.0, 0.0))
         return (exposure: staticLightVector + rotaryLightVector, normal: staticLightVector.exclude_from(lightPlanes[Array.First] + random_normal(trueStatic)))
     }
+ksp::console::CONSOLE.print_line("intersectCount: " + intersectCount.to_string())
 
     // const intersectPlanes = (0..intersectCount)
     const intersectPlanes = (0..lightPlanes.length)
-        .map(fn(i) -> ((i + 1)..lightPlanes.length).map(fn(j) -> lightPlanes[i].cross(lightPlanes[j]).normalized * (lightPlanes[i].magnitude + lightPlanes[j].magnitude)))
-        .flat_map(fn(arr_intersect) -> arr_intersect) // intersect plane is best direction to light both light plane. Sum up all intersect.
+        .flat_map(fn(i) -> ((i + 1)..lightPlanes.length).map(fn(j) -> lightPlanes[i].cross(lightPlanes[j]).normalized * (lightPlanes[i].magnitude + lightPlanes[j].magnitude)))
+        //.flat_map(fn(arr_intersect) -> arr_intersect) // intersect plane is best direction to light both light plane. Sum up all intersect.
         // .reduce(<Vec3>[], fn(flat, arr_intersect) -> flat + arr_intersect) // intersect plane is best direction to light both light plane. Sum up all intersect.
 ksp::console::CONSOLE.print_line("intersectPlanes.lenght: " + intersectPlanes.length.to_string())
 
@@ -702,22 +745,21 @@ ksp::console::CONSOLE.print_line("intersectPlanes.lenght: " + intersectPlanes.le
     (exposure: allLightVector, normal: allLightVectorNormal)
 }
 
+// TODO externalize anonym function into named function in order to make code easier to read. As it should be more understandable, get rid of comments.
 sync fn group_statics_as_rotaries(staticSolarPanels: Part[]) -> Part[][] = {
     if(staticSolarPanels.length < 2)
         return [<Part>[]]
 
     const accuracy = 2
 
-    const normalCount = (((staticSolarPanels.length - 1)**2) + (staticSolarPanels.length - 1)) / 2 // triangular number
-
     (0..staticSolarPanels.length)
-        .map(fn(i) -> ((i + 1)..staticSolarPanels.length).map(fn(j) -> (
+        .flat_map(fn(i) -> ((i + 1)..staticSolarPanels.length).map(fn(j) -> (
             partA: staticSolarPanels[i],
             partB: staticSolarPanels[j],
             normal: (- staticSolarPanels[i].global_rotation.right_vector)
                 .cross(- staticSolarPanels[j].global_rotation.right_vector)
                 .normalized * (staticSolarPanels[i].solar_panel.value.base_flow_rate + staticSolarPanels[j].solar_panel.value.base_flow_rate))
-        )).flat_map(fn(arr) -> arr) // record of all parts'pair normal registred in a flat array
+        ))//.flat_map(fn(arr) -> arr) // record of all parts'pair normal registred in a flat array
         .reduce(<(parts: Part[], normalId: GlobalVector)>[], fn(groups, partPair) -> { // group up parts with same normal
             if(groups.length == Array.Empty) // init
                 return [(parts: [partPair.partA, partPair.partB], normalId: partPair.normal)]
@@ -745,11 +787,12 @@ sync fn group_statics_as_rotaries(staticSolarPanels: Part[]) -> Part[][] = {
         .filter(fn(a) -> a.length > Array.Empty) // get rid of possible empties array
 }
 
-sync fn enlight_static_as_rotaries(staticSolarPanels: Part[][]) -> Vec3[] = {
-    const vessel = staticSolarPanels[Array.First][Array.First].vessel
-    const accuracy = 2
+sync fn enlight_static_as_rotaries(staticSolarPanels: Part[][]) -> Vec3[] =
     staticSolarPanels
         .map(fn(circle) -> {
+            const vessel = circle[Array.First].vessel
+            const accuracy = 2
+
             const meanFlowRate = (circle.reduce(0.0, fn(sum, p) -> sum + p.solar_panel.value.base_flow_rate) / circle.length.to_float) * (Circle.Quarter / Circle.Full) // ((sum individual flow) / part_number) * mean_exposure
 
             const legitimAxis = (- circle[Array.First].global_rotation.to_local(vessel.celestial_frame).right_vector)
@@ -757,9 +800,8 @@ sync fn enlight_static_as_rotaries(staticSolarPanels: Part[][]) -> Vec3[] = {
                 .normalized * meanFlowRate
             if(round_at(legitimAxis.magnitude, accuracy) == 0.0)
                 return random_normal(circle)
-            return legitimAxis
+            legitimAxis
         })
-}
 
 sync fn random_normal(staticSolarPanels: Part[]) -> Vec3 = {
     const staticLightVector = staticSolarPanels

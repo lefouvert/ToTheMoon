@@ -43,9 +43,9 @@ pub const EngineFuel: (Fuel: int, Engine: string)[] = [
     (Fuel: Resource.Xe, Engine: "Electric") // "Xe"->"Xe" Xenon
 ]
 
-pub type CaseConst = int
+pub type StagingCaseConst = int
 
-pub const Case: (NOT_IGN: CaseConst, FLAMEOUT: CaseConst, EMPTY: CaseConst) = (
+pub const StagingCase: (NOT_IGN: StagingCaseConst, FLAMEOUT: StagingCaseConst, EMPTY: StagingCaseConst) = (
     NOT_IGN: 0,
     FLAMEOUT: 1,
     EMPTY:2
