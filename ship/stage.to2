@@ -66,8 +66,7 @@ impl Stage {
 }
 
     sync fn isp(self, context: ThrustSituationConst = ThrustSituation.CurrentAsOn) -> float = {
-        const body = self.ship.main_body
-        const fuelFlowSum = self.engines.decouple
+        const fuelFlowSum = self.engines.activation
             .map(fn(p) -> p.engine_module.value.max_fuel_flow * p.engine_module.value.max_thrust_output_vac / p.engine_module.value.current_engine_mode.max_thrust) // (fuel Flow * limiteur de poussée)
             .reduce(0.0, fn(sum, f) -> sum + f)
         const thrustSum = self.thrust(context)
