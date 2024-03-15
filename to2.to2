@@ -26,6 +26,12 @@ pub fn test_language(vessel: Vessel) -> Unit = {
     // CONSOLE.print_line("test operator *= \"lo\" : " + (k *= "lo"))
     // CONSOLE.print_line("test operator /= \"ab\" : " + (k /= "ab"))
 
+    CONSOLE.print_line("test Direction + Direction : " + (vessel.facing + vessel.up.to_direction()).to_string())
+    CONSOLE.print_line("test Direction - Direction : " + (vessel.facing - vessel.up.to_direction()).to_string())
+    CONSOLE.print_line("test Direction * Direction : " + (vessel.facing * vessel.up.to_direction()).to_string())
+    // CONSOLE.print_line("test Direction / Direction : " + (vessel.facing / vessel.up.to_direction()).to_string())
+
+
 
     // const emtpy = [1, 2, 3, 4, 5, 6]
     //     .filter(fn(i) -> false)[0]

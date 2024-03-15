@@ -12,10 +12,13 @@ use { clear_altitude } from body::atmosphere
 /// Entry Point
 pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
     ksp::console::CONSOLE.clear()
+ksp::console::CONSOLE.print_line("pressure: " + vessel.static_pressure_kpa.to_string())
+
     const ship = Ship(vessel)
 
 vessel.manage_steering(fn(whatever) -> ksp::math::vec3(0.5, 0.0, 0.0))
-ksp::game::sleep(10)
+ksp::game::sleep(5)
+vessel.release_control()
 // return Ok({})
 
 vessel.parts
