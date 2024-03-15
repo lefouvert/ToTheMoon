@@ -1,51 +1,116 @@
 use { CONSOLE } from ksp::console
-use { current_time } from ksp::game
-use { Vessel } from ksp::vessel
+use { active_object_assembly_builder, ObjectAssemblyPart } from ksp::oab
+use { Body, Orbit, find_body } from ksp::orbit
 
-use { Ship } from ship::ship
 
-use * from ship::debug
-use * from ui::debug
-use { test_language } from to2
+pub const OneAtmPressure: float = 101.325 //kpa
+
+pub type ThrustSituationConst = int
+
+pub const ThrustSituation: (Current: ThrustSituationConst, CurrentAsOn: ThrustSituationConst, Max_Vac: ThrustSituationConst, Max_Atm: ThrustSituationConst, Min: ThrustSituationConst) = (
+    Current: 2**0,
+    CurrentAsOn: 2**1,
+    Max_Vac: 2**2,
+    Max_Atm: 2**3,
+    Min: 2**4
+)
 
 /// Entry Point
-pub fn main_editor(vessel : Vessel) -> Unit = {
+pub fn main_editor() -> Result<Unit, string> = {
     // Clear the console
     CONSOLE.clear()
+
+// const body = find_body("Kerbin").value
+// for (alt in 0...71)
+//     CONSOLE.print_line("Alt :" + (alt * 1000).to_string() + " pressure: " + body.atmosphere_pressure_kpa(alt * 1000).to_string())
+// return Ok({})
+
     CONSOLE.print_line((0..80).reduce("", fn(strike, c) -> strike + "-"))
 
-    let startProc = current_time()
-    const ship = Ship(vessel)
-    // test_language(vessel)
-    // stage_debug(vessel)
-    // engineering_debug(vessel)
-    // ship_debug(vessel)
-    // part_debug(vessel)
-    // Stage(vessel, 3).drop()
-    // hms_debug()
-    // dms_debug()
-    // logRandGen_debug()
-    // resources_debug(vessel)
-    CONSOLE.print_line("temp de traitement : "   + (current_time() - startProc).to_string())
+
+    const builder = active_object_assembly_builder()?
+
+    CONSOLE.print_line(">>> " + builder.assemblies.length.to_string())
+    const maybe_assembly = builder.main_assembly
+
+    if(Some(assembly) = maybe_assembly) {
+        CONSOLE.print_line("a d e_def partname [part position]")
+        for(part in assembly.parts.sort_by(fn(p) -> p.activation_stage))
+            CONSOLE.print_line(part.activation_stage.to_string() + " " + part.activation_stage.to_string() + " " + part.engine.defined.to_string() + " " + part.part_name + " " + part.relative_position.to_fixed(2))
+        const maxStage = assembly.parts.reduce(0, fn(max, p) -> if(p.activation_stage > max) p.activation_stage else max)
+        CONSOLE.print_line("Stage count: " + maxStage.to_string())
+        for (stage in 0...maxStage) {
+            const active_engines = assembly.parts.filter(fn(pa) -> pa.activation_stage >= stage
+                    && pa.engine.defined
+                    && !assembly.parts
+                        .exists(fn(pd) -> pd.is_decoupler &&
+                            pd.activation_stage >= stage && pd.decouple_stage <= pa.decouple_stage))
+            const decouple_engines = assembly.parts.filter(fn(pa) -> pa.activation_stage >= stage
+                    && pa.engine.defined
+                    && !assembly.parts
+                        .exists(fn(pd) -> pd.is_decoupler &&
+                            ((pd.activation_stage >= stage && pd.decouple_stage <= pa.decouple_stage)
+                            || (pd.activation_stage < stage && pd.decouple_stage > pa.decouple_stage))))
+            CONSOLE.print_line("=========== STAGE " + stage.to_string() + " ===========")
+            CONSOLE.print_line("thrust 10km Alt: " + thrust(active_engines, ThrustSituation.CurrentAsOn, 10000).to_string())
+            // CONSOLE.print_line("thrust 0km Alt: " + thrust(active_engines, ThrustSituation.CurrentAsOn, 0000).to_string())
+            // CONSOLE.print_line("thrust 70km Alt: " + thrust(active_engines, ThrustSituation.CurrentAsOn, 70000).to_string())
+            CONSOLE.print_line("thrust Vacuum  : " + thrust(active_engines, ThrustSituation.Max_Vac).to_string())
+            CONSOLE.print_line("thrust Sealevel: " + thrust(active_engines, ThrustSituation.Max_Atm).to_string())
+            CONSOLE.print_line("isp 10km Alt: " + isp(active_engines, ThrustSituation.CurrentAsOn, 10000).to_string())
+            CONSOLE.print_line("isp Vacuum  : " + isp(active_engines, ThrustSituation.Max_Vac).to_string())
+            CONSOLE.print_line("isp Sealevel: " + isp(active_engines, ThrustSituation.Max_Atm).to_string())
+            CONSOLE.print_line("engine list (activation): ")
+            for (e in active_engines)
+                CONSOLE.print_line("    " + e.part_name)
+            CONSOLE.print_line("engine list (decouple)  : ")
+            for (e in decouple_engines)
+                CONSOLE.print_line("    " + e.part_name)
+        }
+    } else {
+        CONSOLE.print_line(">>> no main assembly")
+    }
 }
 
-/// Entry Point
-pub fn main_ksc(vessel : Vessel) -> Unit = {
-    // Clear the console
-    CONSOLE.clear()
-    CONSOLE.print_line((0..80).reduce("", fn(strike, c) -> strike + "-"))
+pub sync fn g(body: Body, altitude: float) -> float =
+    body.grav_parameter / ((body.radius + altitude)**2)
 
-    let startProc = current_time()
-    const ship = Ship(vessel)
-    // test_language(vessel)
-    // stage_debug(vessel)
-    // engineering_debug(vessel)
-    // ship_debug(vessel)
-    // part_debug(vessel)
-    // Stage(vessel, 3).drop()
-    // hms_debug()
-    // dms_debug()
-    // logRandGen_debug()
-    // resources_debug(vessel)
-    CONSOLE.print_line("temp de traitement : "   + (current_time() - startProc).to_string())
+pub sync fn g0() -> float =
+    g(find_body("Kerbin").value, 0.0)
+
+pub sync fn atm_influence(body: Body, altitude: float, engine : ObjectAssemblyPart) -> float = {
+    const thrustVac = engine.engine.value.max_thrust_output_vac
+    const thrustAtm = engine.engine.value.max_thrust_output_atm
+    thrustVac + (thrustAtm - thrustVac) * (body.atmosphere_pressure_kpa(altitude) / OneAtmPressure)
+}
+
+sync fn thrust(stageEngines : ObjectAssemblyPart[], context: ThrustSituationConst = ThrustSituation.Current, alt: float = 0.0) -> float = {
+    const body = find_body("Kerbin").value
+    stageEngines
+        .reduce(0.0, fn(sum, p) -> {
+            if (context == ThrustSituation.Current)
+                sum + p.engine.value.current_thrust
+            else if (context == ThrustSituation.CurrentAsOn
+                || (context == ThrustSituation.Min && p.engine.value.current_engine_mode.throttle_locked))
+                sum + atm_influence(body, alt, p)
+            else if (context == ThrustSituation.Max_Vac)
+                sum + p.engine.value.max_thrust_output_vac
+            else if (context == ThrustSituation.Max_Atm)
+                sum + p.engine.value.max_thrust_output_atm
+            else if (context == ThrustSituation.Min)
+                sum + p.engine.value.current_engine_mode.min_thrust
+            else
+                sum
+        })
+}
+
+sync fn isp(stageEngines : ObjectAssemblyPart[], context: ThrustSituationConst = ThrustSituation.CurrentAsOn, altitude: float = 0.0) -> float = {
+    const fuelFlowSum = stageEngines
+        .map(fn(p) -> p.engine.value.max_fuel_flow * p.engine.value.max_thrust_output_vac / p.engine.value.current_engine_mode.max_thrust) // (fuel Flow * limiteur de poussée)
+        .reduce(0.0, fn(sum, f) -> sum + f)
+    const thrustSum = thrust(stageEngines, context, altitude)
+
+    if (fuelFlowSum == 0.0)
+        return 0.0
+    thrustSum / (fuelFlowSum * g0())
 }
