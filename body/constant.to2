@@ -1,5 +1,5 @@
 
-pub const OneAtmPressure: float = 101325.0
+pub const OneAtmPressure: float = 101.325 //kpa
 
 pub const MinAltitude: float = 10000.0
 
