@@ -1,10 +1,12 @@
 use { Vessel, VesselSituation, AutopilotMode, Part, DeployableDeployState } from ksp::vessel
 use { current_time, wait_until, yield, sleep } from ksp::game
 use { ResourceData } from ksp::resource
-use { Direction, Vec3, vec3, vec2, TransformFrame, euler, GlobalVector } from ksp::math
+use { Direction, Vec3, vec3, vec2, TransformFrame, euler, GlobalVector, look_dir_up } from ksp::math
 use { min, max, clamp, abs, MIN_FLOAT, log, clamp_degrees360 } from core::math
 use { ExperimentState, Experiment, ResearchLocation, ResearchReport, ScienceSituation } from ksp::science
 use { CONSOLE } from ksp::console
+
+use { control_steering } from std::control::steering
 
 use { ThrustSituation, ThrustSituationConst, MassState, MassStateConst, StagingCase, Throttle, Resource } from ship::constant
 use { InsignificantAtmoshpere } from body::constant
@@ -140,225 +142,43 @@ impl Ship {
         true
     }
 
-    fn park(self) -> bool = {
+    fn park(self, rought: bool = false, verbose: bool = true) -> bool = {
         const vessel = self.ship
-        const celframe = vessel.celestial_frame
-        const vesframe = vessel.control_frame
+        const staticFrame = vessel.main_body.celestial_frame
+        const accuracy = if(rought) 2 else 3
+
+        if(verbose)
+            self.print("Setting stationed attitude...")
+
+        vessel.autopilot.enabled = true
+        vessel.autopilot.mode = AutopilotMode.StabilityAssist
+        wait_until(fn() -> round_at(vessel.angular_velocity.magnitude, accuracy) == 0)
 
         let referenceOrbit = vessel.orbit
         while(referenceOrbit.reference_body.parent_body.defined)
             referenceOrbit = referenceOrbit.reference_body.orbit
-        const starVector = referenceOrbit.reference_body.global_position.to_local(celframe)
-        const orbitNormal = referenceOrbit.orbit_normal
 
-ksp::console::CONSOLE.print_line("star: " + referenceOrbit.reference_body.name)
+        const starExposure = (exposure: referenceOrbit.reference_body.global_position.to_local(staticFrame), normal: referenceOrbit.orbit_normal)
+        const vesselExposure = ideal_exposure(vessel)
 
+        const starDir = look_dir_up(starExposure.exposure.normalized, starExposure.normal.normalized)
+        const vesselDir = look_dir_up(vesselExposure.exposure.to_global(vessel.control_frame).to_local(staticFrame), vesselExposure.normal.to_global(vessel.control_frame).to_local(staticFrame))
 
-        const exposureDefinitionVesFrame = ideal_exposure(self.ship)
-        const exposureDefinition = (exposure: exposureDefinitionVesFrame.exposure.to_global(vesframe).to_local(celframe), normal: exposureDefinitionVesFrame.normal.to_global(vesframe).to_local(celframe))
-        const initFacing = vessel.global_facing.vector
-ksp::console::CONSOLE.print_line("exposure magnitude: " + exposureDefinition.exposure.magnitude.to_string())
+        const steering = control_steering(vessel)
+        steering.set_direction(starDir * vesselDir.inverse * vessel.global_facing.to_local(staticFrame))
 
-// WANTED : align ideal_exposure(self.ship).exposure with starVector and ideal_exposure(self.ship).normal with orbitNormal
+        wait_until(fn() ->
+            round_at(vesselExposure.exposure.to_global(vessel.control_frame).normalized * starExposure.exposure.to_global(staticFrame).normalized, accuracy) == 1
+            && round_at(vesselExposure.normal.to_global(vessel.control_frame).normalized * starExposure.normal.to_global(staticFrame).normalized, accuracy) == 1
+            && round_at(vessel.angular_velocity.magnitude, accuracy) == 0
+        )
+        steering.release()
+        vessel.autopilot.mode = AutopilotMode.StabilityAssist
 
-        // const facingPolar = cartesian_to_polar(vessel.global_facing.to_local(celframe).vector)
+        if(verbose)
+            self.print("Stationed")
 
-
-ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[Array.First].part.global_position,
-    fn() -> exposureDefinition.exposure.to_global(celframe).normalized * 25,
-    ui::constant::ULTRAMARINE,
-    "initial best exposure",
-    2)
-
-ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[Array.First].part.global_position,
-    fn() -> exposureDefinition.normal.to_global(celframe).normalized * 25,
-    ui::constant::GREY,
-    "initial best normal",
-    2)
-
-ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[Array.First].part.global_position,
-    // fn() -> polar_to_cartesian(facingPolar).to_global(celframe) * 25,
-    fn() -> initFacing.normalized * 25,
-    ui::constant::CRIMSON,
-    "initial facing",
-    2)
-
-ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[Array.First].part.global_position,
-    fn() -> ideal_exposure(self.ship).normal.to_global(vesframe).normalized * 50,
-    ui::constant::WHITE,
-    "best normal",
-    1)
-
-ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[Array.First].part.global_position,
-    fn() -> ideal_exposure(self.ship).exposure.to_global(vesframe).normalized * 50,
-    ui::constant::BLUE,
-    "best exposure",
-    1)
-
-ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[Array.First].part.global_position,
-    fn() -> vessel.global_facing.vector * 50,
-    ui::constant::RED,
-    "facing",
-    1)
-
-// ideal normal have to aim
-ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[Array.First].part.global_position,
-    fn() -> orbitNormal.to_global(celframe).normalized * 75,
-    ui::constant::GREEN,
-    "ObtNormal",
-    0.5)
-
-// ideal exposure have to aim
-ksp::debug::DEBUG.add_vector(
-    fn() -> vessel.command_modules[Array.First].part.global_position,
-    fn() -> starVector.to_global(celframe).normalized * 75,
-    ui::constant::YELLOW,
-    "Kerbol",
-    0.5)
-
-        // time consuming, dumb but it work. TODO do better and more stable. (probably pid will be needed)
-        let misaligned = true
-
-        while(misaligned) {
-            const expNor2 = ideal_exposure(self.ship)
-            const sunDir2 = ksp::math::look_dir_up(starVector.to_global(celframe).to_local(vesframe), orbitNormal.to_global(celframe).to_local(vesframe))
-            const vesselDir2 = ksp::math::look_dir_up(expNor2.exposure, expNor2.normal)
-            // const deltaDir2 = euler(core::math::clamp_degrees180(sunDir2.pitch - vesselDir2.pitch), core::math::clamp_degrees180(sunDir2.roll - vesselDir2.roll), core::math::clamp_degrees180(sunDir2.yaw - vesselDir2.yaw))
-            // const deltaDir2 = euler(core::math::clamp_degrees180(vesselDir2.pitch - sunDir2.pitch), core::math::clamp_degrees180(vesselDir2.roll - sunDir2.roll), core::math::clamp_degrees180(vesselDir2.yaw - sunDir2.yaw))
-            const deltaDir2 = sunDir2 - vesselDir2
-            const deltaDir3 = deltaDir2.to_global(vesframe).to_local(celframe)
-            const deltaDir4 = deltaDir2.to_global(vesframe).to_local(vessel.horizon_frame)
-            const deltaDir5 = deltaDir2.to_global(vesframe).to_local(vessel.body_frame)
-            // const deltaDir2 = vesselDir2 - sunDir2
-            // const deltaDir2 = (sunDir2 * vessel.global_facing.to_local(vesframe)) - (vesselDir2 * vessel.global_facing.to_local(vesframe))
-
-            const rotatedDelta = vessel.global_facing.to_local(vesframe) * deltaDir2
-
-            ksp::console::CONSOLE.print_at(01, 0, "Celestial Frame :                                        ")
-            ksp::console::CONSOLE.print_at(02, 0, $"Dpitch: {core::math::clamp_degrees180(deltaDir3.pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(03, 0, $"Dyaw  : {core::math::clamp_degrees180(deltaDir3.yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(04, 0, $"Droll : {core::math::clamp_degrees180(deltaDir3.roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(02, 15, $"Fpitch: {core::math::clamp_degrees180(vessel.global_facing.to_local(celframe).pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(03, 15, $"Fyaw  : {core::math::clamp_degrees180(vessel.global_facing.to_local(celframe).yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(04, 15, $"Froll : {core::math::clamp_degrees180(vessel.global_facing.to_local(celframe).roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(02, 30, $"Spitch: {core::math::clamp_degrees180(starVector.to_direction().pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(03, 30, $"Syaw  : {core::math::clamp_degrees180(starVector.to_direction().yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(04, 30, $"Sroll : {core::math::clamp_degrees180(starVector.to_direction().roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(02, 45, $"Opitch: {core::math::clamp_degrees180(orbitNormal.to_direction().pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(03, 45, $"Oyaw  : {core::math::clamp_degrees180(orbitNormal.to_direction().yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(04, 45, $"Oroll : {core::math::clamp_degrees180(orbitNormal.to_direction().roll),5:N2}              ")
-
-
-            ksp::console::CONSOLE.print_at(05, 0, "Control Frame :                                        ")
-            ksp::console::CONSOLE.print_at(06, 0, $"Dpitch: {core::math::clamp_degrees180(deltaDir2.pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(07, 0, $"Dyaw  : {core::math::clamp_degrees180(deltaDir2.yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(08, 0, $"Droll : {core::math::clamp_degrees180(deltaDir2.roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(06, 15, $"Fpitch: {core::math::clamp_degrees180(vessel.global_facing.to_local(vesframe).pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(07, 15, $"Fyaw  : {core::math::clamp_degrees180(vessel.global_facing.to_local(vesframe).yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(08, 15, $"Froll : {core::math::clamp_degrees180(vessel.global_facing.to_local(vesframe).roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(06, 30, $"Spitch: {core::math::clamp_degrees180(starVector.to_global(celframe).to_local(vesframe).to_direction().pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(07, 30, $"Syaw  : {core::math::clamp_degrees180(starVector.to_global(celframe).to_local(vesframe).to_direction().yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(08, 30, $"Sroll : {core::math::clamp_degrees180(starVector.to_global(celframe).to_local(vesframe).to_direction().roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(06, 45, $"Opitch: {core::math::clamp_degrees180(orbitNormal.to_global(celframe).to_local(vesframe).to_direction().pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(07, 45, $"Oyaw  : {core::math::clamp_degrees180(orbitNormal.to_global(celframe).to_local(vesframe).to_direction().yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(08, 45, $"Oroll : {core::math::clamp_degrees180(orbitNormal.to_global(celframe).to_local(vesframe).to_direction().roll),5:N2}              ")
-
-
-            ksp::console::CONSOLE.print_at(09, 0, "Horizon Frame :                                        ")
-            ksp::console::CONSOLE.print_at(10, 0, $"Dpitch: {core::math::clamp_degrees180(deltaDir4.pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(11, 0, $"Dyaw  : {core::math::clamp_degrees180(deltaDir4.yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(12, 0, $"Droll : {core::math::clamp_degrees180(deltaDir4.roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(10, 15, $"Fpitch: {core::math::clamp_degrees180(vessel.global_facing.to_local(vessel.horizon_frame).pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(11, 15, $"Fyaw  : {core::math::clamp_degrees180(vessel.global_facing.to_local(vessel.horizon_frame).yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(12, 15, $"Froll : {core::math::clamp_degrees180(vessel.global_facing.to_local(vessel.horizon_frame).roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(10, 30, $"Spitch: {core::math::clamp_degrees180(starVector.to_global(celframe).to_local(vessel.horizon_frame).to_direction().pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(11, 30, $"Syaw  : {core::math::clamp_degrees180(starVector.to_global(celframe).to_local(vessel.horizon_frame).to_direction().yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(12, 30, $"Sroll : {core::math::clamp_degrees180(starVector.to_global(celframe).to_local(vessel.horizon_frame).to_direction().roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(10, 45, $"Opitch: {core::math::clamp_degrees180(orbitNormal.to_global(celframe).to_local(vessel.horizon_frame).to_direction().pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(11, 45, $"Oyaw  : {core::math::clamp_degrees180(orbitNormal.to_global(celframe).to_local(vessel.horizon_frame).to_direction().yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(12, 45, $"Oroll : {core::math::clamp_degrees180(orbitNormal.to_global(celframe).to_local(vessel.horizon_frame).to_direction().roll),5:N2}              ")
-
-
-            ksp::console::CONSOLE.print_at(13, 0, "vessel body Frame :                                        ")
-            ksp::console::CONSOLE.print_at(14, 0, $"Dpitch: {core::math::clamp_degrees180(deltaDir5.pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(15, 0, $"Dyaw  : {core::math::clamp_degrees180(deltaDir5.yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(16, 0, $"Droll : {core::math::clamp_degrees180(deltaDir5.roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(14, 15, $"Fpitch: {core::math::clamp_degrees180(vessel.global_facing.to_local(vessel.body_frame).pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(15, 15, $"Fyaw  : {core::math::clamp_degrees180(vessel.global_facing.to_local(vessel.body_frame).yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(16, 15, $"Froll : {core::math::clamp_degrees180(vessel.global_facing.to_local(vessel.body_frame).roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(14, 30, $"Spitch: {core::math::clamp_degrees180(starVector.to_global(celframe).to_local(vessel.body_frame).to_direction().pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(15, 30, $"Syaw  : {core::math::clamp_degrees180(starVector.to_global(celframe).to_local(vessel.body_frame).to_direction().yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(16, 30, $"Sroll : {core::math::clamp_degrees180(starVector.to_global(celframe).to_local(vessel.body_frame).to_direction().roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(14, 45, $"Opitch: {core::math::clamp_degrees180(orbitNormal.to_global(celframe).to_local(vessel.body_frame).to_direction().pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(15, 45, $"Oyaw  : {core::math::clamp_degrees180(orbitNormal.to_global(celframe).to_local(vessel.body_frame).to_direction().yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(16, 45, $"Oroll : {core::math::clamp_degrees180(orbitNormal.to_global(celframe).to_local(vessel.body_frame).to_direction().roll),5:N2}              ")
-
-
-
-            ksp::console::CONSOLE.print_at(22, 0, $"Rpitch: {core::math::clamp_degrees180(rotatedDelta.pitch),5:N2}              ")
-            ksp::console::CONSOLE.print_at(23, 0, $"Ryaw  : {core::math::clamp_degrees180(rotatedDelta.yaw),5:N2}              ")
-            ksp::console::CONSOLE.print_at(24, 0, $"Rroll : {core::math::clamp_degrees180(rotatedDelta.roll),5:N2}              ")
-
-            ksp::console::CONSOLE.print_at(26, 0, $"momt : {vessel.angular_momentum.magnitude,5:N7}              ")
-            ksp::console::CONSOLE.print_at(27, 0, $"avel : {vessel.angular_velocity.magnitude,5:N7}              ")
-            ksp::console::CONSOLE.print_at(28, 0, $"torq : {vessel.total_torque.magnitude,5:N7}              ")
-
-
-            const brake = if (vessel.angular_velocity.magnitude * vessel.mass > vessel.total_torque.magnitude) -1 else 1
-
-// self.align(deltaDir2.vector)
-// ksp::game::sleep(10)
-// self.align(deltaDir2.to_global(vesframe).to_local(celframe).vector)
-// ksp::game::sleep(10)
-            // if(core::math::abs(core::math::clamp_degrees180(deltaDir2.pitch)) > 1.0 || core::math::abs(core::math::clamp_degrees180(deltaDir2.yaw)) > 1.0)
-            // // || core::math::abs(core::math::clamp_degrees180(deltaDir2.roll)) < 2.0)
-            //     vessel.manage_steering(fn(whatever: float) -> vec3(
-            //         brake * core::math::sin_deg(core::math::clamp_degrees180((deltaDir2.pitch) / 2)),
-            //         brake * core::math::sin_deg(core::math::clamp_degrees180((deltaDir2.yaw) / 2)),
-            //         0.0
-            //     ))
-            // else
-            //     vessel.manage_steering(fn(whatever: float) -> vec3(
-            //         0.0,
-            //         0.0,
-            //         brake * - core::math::sin_deg(core::math::clamp_degrees180((deltaDir2.roll) / 2))
-            //     ))
-            // if(core::math::abs(core::math::clamp_degrees180(rotatedDelta.pitch)) > 5.0 || core::math::abs(core::math::clamp_degrees180(rotatedDelta.yaw)) > 5.0){
-            //     vessel.release_control()
-            //     self.align(rotatedDelta.to_global(vesframe).to_local(celframe).vector, 0.5)
-            // } else
-            //     vessel.manage_steering(fn(whatever: float) -> vec3(
-            //         0.0,
-            //         0.0,
-            //         brake * core::math::sin_deg(core::math::clamp_degrees180((rotatedDelta.roll) / 2))
-            //     ))
-
-            ksp::game::yield()
-            misaligned = 3.0 < core::math::abs(core::math::clamp_degrees180(deltaDir2.pitch)) + core::math::abs(core::math::clamp_degrees180(deltaDir2.yaw)) + core::math::abs(core::math::clamp_degrees180(deltaDir2.roll))
-            || 0.01 < vessel.angular_velocity.magnitude || true
-        }
-
-        vessel.release_control()
-        return true
+        true
     }
 
     fn dock(self, vessel: Vessel) -> bool = {

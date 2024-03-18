@@ -20,13 +20,13 @@ vessel.manage_steering(fn(whatever) -> ksp::math::vec3(0.5, 0.0, 0.0))
 ksp::game::sleep(5)
 vessel.release_control()
 // return Ok({})
-
+ksp::game::sleep(15)
 vessel.parts
     .filter(fn(p) -> p.is_cargo_bay)
     .map(fn(p) -> ksp::console::CONSOLE.print_line("cargo: " + p.part_name))
 
 const testrecipe = vessel.parts
-    .filter_map(fn(p) -> p.engine_module)
+    .filter_map(fn(p) -> p.engine)
     // .map(tn(m) -> m.propellants.recipe_ingredients|(resource: )) we still don't know which engine mode lead to which propellant.
 // for (tr in testrecipe){
 //     ksp::console::CONSOLE.print_line(tr.part_name + " propellants list size: " + tr.propellants.length.to_string())
