@@ -15,8 +15,8 @@ pub sync fn atmosphere_depth(body: Body) -> float =
     if(body.has_atmosphere) body.atmosphere_depth else 0.0
 
 pub sync fn atm_influence(vessel : Vessel, engine : Part) -> float = {
-    const thrustVac = engine.engine_module.value.max_thrust_output_vac
-    const thrustAtm = engine.engine_module.value.max_thrust_output_atm
+    const thrustVac = engine.engine.value.max_thrust_output_vac
+    const thrustAtm = engine.engine.value.max_thrust_output_atm
     thrustVac + (thrustAtm - thrustVac) * (vessel.static_pressure_kpa / OneAtmPressure)
 }
 

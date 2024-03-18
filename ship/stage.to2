@@ -12,14 +12,14 @@ pub struct Stage(vessel : Vessel, stage: int) {
     engines: (activation: Part[], decouple: Part[]) = (
         activation: vessel.parts // Which engines are still activated at this stage
             .filter(fn(pa) -> pa.activation_stage >= stage
-                && pa.engine_module.defined
+                && pa.engine.defined
                 && vessel.global_facing.vector.normalized.dot(pa.global_rotation.vector.normalized) > 0.9
                 && !vessel.parts
                     .exists(fn(pd) -> pd.is_decoupler &&
                         pd.activation_stage >= stage && pd.decouple_stage <= pa.decouple_stage))
         , decouple: vessel.parts // Which engines are still activated at this stage AND will be decoupled together next
             .filter(fn(pa) -> pa.activation_stage >= stage
-                && pa.engine_module.defined
+                && pa.engine.defined
                 && vessel.global_facing.vector.normalized.dot(pa.global_rotation.vector.normalized) > 0.9
                 && !vessel.parts
                     .exists(fn(pd) -> pd.is_decoupler &&
@@ -34,13 +34,13 @@ impl Stage {
         self.engines.activation.length > 0
 
     sync fn ignited(self) -> bool =
-        self.has_engine() && (!self.engines.activation.exists(fn(p) -> !p.engine_module.value.is_staged))
+        self.has_engine() && (!self.engines.activation.exists(fn(p) -> !p.engine.value.is_staged))
 
     sync fn partial_flameout(self) -> bool =
-        self.engines.activation.exists(fn(p) -> p.engine_module.value.has_ignited && p.engine_module.value.is_flameout)
+        self.engines.activation.exists(fn(p) -> p.engine.value.has_ignited && p.engine.value.is_flameout)
 
     sync fn flameout(self) -> bool =
-        !self.engines.activation.exists(fn(p) -> !(p.engine_module.value.has_ignited && p.engine_module.value.is_flameout))
+        !self.engines.activation.exists(fn(p) -> !(p.engine.value.has_ignited && p.engine.value.is_flameout))
 
     sync fn empty(self) -> bool =
         (self.engines.activation.length > self.engines.decouple.length && self.partial_flameout())
@@ -50,16 +50,16 @@ impl Stage {
         self.engines.activation
             .reduce(0.0, fn(sum, p) -> {
                 if (context == ThrustSituation.Current)
-                    sum + p.engine_module.value.current_thrust
+                    sum + p.engine.value.current_thrust
                 else if (context == ThrustSituation.CurrentAsOn
-                    || (context == ThrustSituation.Min && p.engine_module.value.current_engine_mode.throttle_locked))
+                    || (context == ThrustSituation.Min && p.engine.value.current_engine_mode.throttle_locked))
                     sum + atm_influence(vessel, p)
                 else if (context == ThrustSituation.Max_Vac)
-                    sum + p.engine_module.value.max_thrust_output_vac
+                    sum + p.engine.value.max_thrust_output_vac
                 else if (context == ThrustSituation.Max_Atm)
-                    sum + p.engine_module.value.max_thrust_output_atm
+                    sum + p.engine.value.max_thrust_output_atm
                 else if (context == ThrustSituation.Min)
-                    sum + p.engine_module.value.current_engine_mode.min_thrust
+                    sum + p.engine.value.current_engine_mode.min_thrust
                 else
                     sum
             })
@@ -67,7 +67,7 @@ impl Stage {
 
     sync fn isp(self, context: ThrustSituationConst = ThrustSituation.CurrentAsOn) -> float = {
         const fuelFlowSum = self.engines.activation
-            .map(fn(p) -> p.engine_module.value.max_fuel_flow * p.engine_module.value.max_thrust_output_vac / p.engine_module.value.current_engine_mode.max_thrust) // (fuel Flow * limiteur de poussée)
+            .map(fn(p) -> p.engine.value.max_fuel_flow * p.engine.value.max_thrust_output_vac / p.engine.value.current_engine_mode.max_thrust) // (fuel Flow * limiteur de poussée)
             .reduce(0.0, fn(sum, f) -> sum + f)
         const thrustSum = self.thrust(context)
 
@@ -82,7 +82,7 @@ impl Stage {
         const initialMass = mass_from(self, MassState.Total)
         const dryMass = mass_from(self, MassState.LocalDry)
         const fuelFlowSum = self.engines.decouple
-            .map(fn(p) -> p.engine_module.value.max_fuel_flow * p.engine_module.value.max_thrust_output_vac / p.engine_module.value.current_engine_mode.max_thrust) // (fuel Flow * limiteur de poussée)
+            .map(fn(p) -> p.engine.value.max_fuel_flow * p.engine.value.max_thrust_output_vac / p.engine.value.current_engine_mode.max_thrust) // (fuel Flow * limiteur de poussée)
             .reduce(0.0, fn(sum, f) -> sum + f)
         if (fuelFlowSum == 0)
             return 0.0
@@ -143,7 +143,7 @@ pub sync fn mass_from(stage: Stage, context : MassStateConst = MassState.Total) 
                 && stage.engines.decouple
                     .exists(fn(e) -> e.decouple_stage == p.decouple_stage
                         && EngineFuel
-                            .exists(fn(f) -> f.Engine == e.engine_module.value.current_engine_mode.engine_type.to_string()
+                            .exists(fn(f) -> f.Engine == e.engine.value.current_engine_mode.engine_type.to_string()
                             && f.Fuel != Resource.EC
                             && p.resources.list.exists(fn(r) -> r.resource.id == f.Fuel)))
                 )

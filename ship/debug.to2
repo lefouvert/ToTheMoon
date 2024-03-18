@@ -23,26 +23,26 @@ pub fn part_debug(vessel: Vessel) -> Unit = {
 
 pub sync fn engine_debug(vessel: Vessel, stage: int) -> Unit = {
     vessel.parts
-        .filter(fn(p) -> p.activation_stage == stage && p.engine_module.defined)
+        .filter(fn(p) -> p.activation_stage == stage && p.engine.defined)
         .map(fn(p) -> {
             CONSOLE.print_line("    ")
-            CONSOLE.print_line("allow restart           : " + p.engine_module.value.current_engine_mode.allow_restart.to_string())
-            CONSOLE.print_line("allow shutdown          : " + p.engine_module.value.current_engine_mode.allow_shutdown.to_string())
-            CONSOLE.print_line("max thrust              : " + p.engine_module.value.current_engine_mode.max_thrust.to_string())
-            CONSOLE.print_line("min thrust              : " + p.engine_module.value.current_engine_mode.min_thrust.to_string())
-            CONSOLE.print_line("name                    : " + p.engine_module.value.current_engine_mode.name)
-            CONSOLE.print_line("throttle locked         : " + p.engine_module.value.current_engine_mode.throttle_locked.to_string())
+            CONSOLE.print_line("allow restart           : " + p.engine.value.current_engine_mode.allow_restart.to_string())
+            CONSOLE.print_line("allow shutdown          : " + p.engine.value.current_engine_mode.allow_shutdown.to_string())
+            CONSOLE.print_line("max thrust              : " + p.engine.value.current_engine_mode.max_thrust.to_string())
+            CONSOLE.print_line("min thrust              : " + p.engine.value.current_engine_mode.min_thrust.to_string())
+            CONSOLE.print_line("name                    : " + p.engine.value.current_engine_mode.name)
+            CONSOLE.print_line("throttle locked         : " + p.engine.value.current_engine_mode.throttle_locked.to_string())
 
-            CONSOLE.print_line("current throttle        : " + p.engine_module.value.current_throttle.to_string())
-            CONSOLE.print_line("current thrust          : " + p.engine_module.value.current_thrust.to_string())
-            CONSOLE.print_line("max fuel flow           : " + p.engine_module.value.max_fuel_flow.to_string())
-            CONSOLE.print_line("max_thrust_output_atm   : " + p.engine_module.value.max_thrust_output_atm.to_string())
-            CONSOLE.print_line("max_thrust_output_vac   : " + p.engine_module.value.max_thrust_output_vac.to_string())
-            CONSOLE.print_line("part name               : " + p.engine_module.value.part_name)
-            CONSOLE.print_line("real isp                : " + p.engine_module.value.real_isp.to_string())
-            CONSOLE.print_line("throttle min            : " + p.engine_module.value.throttle_min.to_string())
-            CONSOLE.print_line("max Fuel Flow           : " + p.engine_module.value.max_fuel_flow.to_string())
-            p.engine_module.value.engine_modes.map(fn(m) -> CONSOLE.print_line("engineType              : " + m.engine_type.to_string()))
+            CONSOLE.print_line("current throttle        : " + p.engine.value.current_throttle.to_string())
+            CONSOLE.print_line("current thrust          : " + p.engine.value.current_thrust.to_string())
+            CONSOLE.print_line("max fuel flow           : " + p.engine.value.max_fuel_flow.to_string())
+            CONSOLE.print_line("max_thrust_output_atm   : " + p.engine.value.max_thrust_output_atm.to_string())
+            CONSOLE.print_line("max_thrust_output_vac   : " + p.engine.value.max_thrust_output_vac.to_string())
+            CONSOLE.print_line("part name               : " + p.engine.value.part_name)
+            CONSOLE.print_line("real isp                : " + p.engine.value.real_isp.to_string())
+            CONSOLE.print_line("throttle min            : " + p.engine.value.throttle_min.to_string())
+            CONSOLE.print_line("max Fuel Flow           : " + p.engine.value.max_fuel_flow.to_string())
+            p.engine.value.engine_modes.map(fn(m) -> CONSOLE.print_line("engineType              : " + m.engine_type.to_string()))
         })
 }
 
