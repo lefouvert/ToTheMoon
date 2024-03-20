@@ -50,3 +50,5 @@ pub const Sign: (Positive: SignConst, Negative: SignConst) = (
     Positive: 1.0,
     Negative: -1.0
 )
+
+pub const VacuumLightSpeed: float = 299792458.0

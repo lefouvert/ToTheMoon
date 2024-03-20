@@ -14,9 +14,7 @@ pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
 
     const ship = Ship(vessel)
 
-    const peri = 2000000.0
-    const inclination = 30
-    const KerbinLowOrbit = create_orbit(vessel.main_body, peri, inclination, semi_major_axis(vessel.main_body, peri, peri + 10000), expected_LAN(vessel.geo_coordinates, inclination).value, 0.0)
+    const KerbinLowOrbit = fast_orbit(vessel)
 
     if (vessel.situation == VesselSituation.PreLaunch){
         if(!sanitityCheck(ship))
@@ -24,8 +22,7 @@ pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
         takeOff(ship)
     }
 
-    // if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Trigonometric)
-    if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Logarithmic)
+    if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Trigonometric)
 
     circularize(ship)
     ship.park()

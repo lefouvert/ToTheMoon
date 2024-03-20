@@ -1,0 +1,13 @@
+// TODO tags in code
+// separate processus logger who can still run even if main processus fail. (and share data with monitor ?)
+// monitor : 5 last line of logger ? science experiements status ? part review ?
+// maneuver::set_apsis_at_aop
+// maneuver::set_inclination_fine
+// maneuver::set_inclination_at_lon
+// maneuver::hohmann
+// orbit::transfert
+// orbit::rdv
+// Ship::land_atm (at ?)
+// Ship::land_vacuum (at ?)
+// Ship::crash
+// mission builder

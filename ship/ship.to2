@@ -1,20 +1,25 @@
 use { Vessel, VesselSituation, AutopilotMode, Part, DeployableDeployState } from ksp::vessel
 use { current_time, wait_until, yield, sleep } from ksp::game
-use { ResourceData } from ksp::resource
-use { Direction, Vec3, vec3, vec2, TransformFrame, euler, GlobalVector, look_dir_up } from ksp::math
-use { min, max, clamp, abs, MIN_FLOAT, log, clamp_degrees360 } from core::math
+// use { ResourceData } from ksp::resource
+use { Direction, Vec3, vec3, TransformFrame, look_dir_up } from ksp::math
+use { min, max, clamp, abs, MIN_FLOAT } from core::math
 use { ExperimentState, Experiment, ResearchLocation, ResearchReport, ScienceSituation } from ksp::science
 use { CONSOLE } from ksp::console
 
 use { control_steering } from std::control::steering
 
-use { ThrustSituation, ThrustSituationConst, MassState, MassStateConst, StagingCase, Throttle, Resource } from ship::constant
+use { ThrustSituation, ThrustSituationConst, MassState, MassStateConst, Throttle, Resource } from ship::constant
 use { InsignificantAtmoshpere } from body::constant
 use { Circle, Array } from math::constant
 use { Stage } from ship::stage
+use { stage } from ship::action::stage
+use { run_science, emmit_science } from ship::action::science
+use { ideal_exposure } from ship::aggregation::solarpanel
 use { atmosphere_depth } from body::atmosphere
 use { deviation } from ship::navigation
-use { earlyWeightConvex, Derivative, round_at, cartesian_to_polar, polar_to_cartesian, almost_equal_global } from math::tool
+use { early_weight_convex } from math::trigonometry
+use { round_at } from math::rounding
+use { Derivative } from math::feedback
 use { hms, engineeringNotation } from ui::unit
 
 pub struct SmoothStop(target: float, timeToStop: float) {
@@ -54,7 +59,6 @@ impl Ship {
 
 // trash useless (fairing, empty tanks or stages) / check empty ?
 // warpwait
-// park
 // dock
 // suicideburn
 // get/change control module ?
@@ -62,7 +66,7 @@ impl Ship {
 //////////////////////////////// ongoing
     sync fn throttle_direction(self, targetDir: Direction, deadzone: float = 0, tolerance: float = 1.0) -> float = {
         const assessedDeviation = max(deviation(targetDir, self.ship.facing) - deadzone, Circle.None)
-        earlyWeightConvex(tolerance * assessedDeviation / Circle.Quarter)
+        early_weight_convex(tolerance * assessedDeviation / Circle.Quarter)
     }
 
     sync fn throttle_temperature(self) -> float = {
@@ -70,14 +74,14 @@ impl Ship {
             return Throttle.Max
         const hotPart = self.ship.parts
             .sort_by(fn(p) -> p.temperature / p.max_temperature)
-            .reverse()[0]
+            .reverse()[Array.First]
         const minTempFullThrust = 0.5
         const maxTempRatio = 0.9
         const slope = (
-            ratio: (Throttle.Max - Throttle.Min) / (minTempFullThrust - maxTempRatio),
-            yIntercept: -maxTempRatio * (Throttle.Max - Throttle.Min) / (minTempFullThrust - maxTempRatio)
+            ratio: (Throttle.Max - Throttle.Shut) / (minTempFullThrust - maxTempRatio),
+            yIntercept: -maxTempRatio * (Throttle.Max - Throttle.Shut) / (minTempFullThrust - maxTempRatio)
         )
-        clamp(slope.ratio * (hotPart.temperature / hotPart.max_temperature) + slope.yIntercept, Throttle.Min, Throttle.Max)
+        clamp(slope.ratio * (hotPart.temperature / hotPart.max_temperature) + slope.yIntercept, Throttle.Shut, Throttle.Max)
     }
 
     sync fn throttle_q(self) -> float = {
@@ -86,10 +90,10 @@ impl Ship {
         const minQFullThrust = 0.5
         const maxQRatio = 0.9
         const slope = (
-            ratio: (Throttle.Max - Throttle.Min) / (minQFullThrust - maxQRatio),
-            yIntercept: -maxQRatio * (Throttle.Max - Throttle.Min) / (minQFullThrust - maxQRatio)
+            ratio: (Throttle.Max - Throttle.Shut) / (minQFullThrust - maxQRatio),
+            yIntercept: -maxQRatio * (Throttle.Max - Throttle.Shut) / (minQFullThrust - maxQRatio)
         )
-        clamp(slope.ratio * (self.ship.dynamic_pressure_kpa / MAX_Q) + slope.yIntercept, Throttle.Min, Throttle.Max)
+        clamp(slope.ratio * (self.ship.dynamic_pressure_kpa / MAX_Q) + slope.yIntercept, Throttle.Shut, Throttle.Max)
     }
 
     sync fn set_throttle_altitude(self, targetAltitude:float, timeToStop:float = 5) -> Unit =
@@ -114,7 +118,7 @@ impl Ship {
             else
                 commun_direction / (abs(dMByDT) * self.smoothStop.timeToStop)
 
-        self.smoothStop.lastThrottle = clamp((self.smoothStop.target - measure) * deltaDirection, Throttle.Min, min(self.smoothStop.lastThrottle + 0.01, Throttle.Max))
+        self.smoothStop.lastThrottle = clamp((self.smoothStop.target - measure) * deltaDirection, Throttle.Shut, min(self.smoothStop.lastThrottle + 0.01, Throttle.Max))
         self.smoothStop.lastThrottle
     }
 
@@ -153,20 +157,22 @@ impl Ship {
         vessel.autopilot.enabled = true
         vessel.autopilot.mode = AutopilotMode.StabilityAssist
         wait_until(fn() -> round_at(vessel.angular_velocity.magnitude, accuracy) == 0)
-
+ksp::console::CONSOLE.print_line("wait stop moving")
         let referenceOrbit = vessel.orbit
         while(referenceOrbit.reference_body.parent_body.defined)
             referenceOrbit = referenceOrbit.reference_body.orbit
 
         const starExposure = (exposure: referenceOrbit.reference_body.global_position.to_local(staticFrame), normal: referenceOrbit.orbit_normal)
         const vesselExposure = ideal_exposure(vessel)
-
+ship::debug::park_debug(vessel, starExposure, vesselExposure)
         const starDir = look_dir_up(starExposure.exposure.normalized, starExposure.normal.normalized)
-        const vesselDir = look_dir_up(vesselExposure.exposure.to_global(vessel.control_frame).to_local(staticFrame), vesselExposure.normal.to_global(vessel.control_frame).to_local(staticFrame))
-
+        const vesselDir = look_dir_up(vesselExposure.exposure.to_global(vessel.control_frame).to_local(staticFrame).normalized, vesselExposure.normal.to_global(vessel.control_frame).to_local(staticFrame).normalized)
+ksp::console::CONSOLE.print_line((starDir * vesselDir.inverse * vessel.global_facing.to_local(staticFrame)).to_string())
         const steering = control_steering(vessel)
-        steering.set_direction(starDir * vesselDir.inverse * vessel.global_facing.to_local(staticFrame))
-
+        const rotation = starDir * vesselDir.inverse * vessel.global_facing.to_local(staticFrame)
+        const rotationE = ksp::math::euler(core::math::clamp_degrees180(rotation.euler.x), core::math::clamp_degrees180(rotation.euler.y), core::math::clamp_degrees180(rotation.euler.z))
+        steering.set_direction(rotationE)
+ksp::console::CONSOLE.print_line("wait aligned and stop moving: " + round_at(vesselExposure.exposure.to_global(vessel.control_frame).normalized * starExposure.exposure.to_global(staticFrame).normalized, accuracy).to_string() + "|" + round_at(vesselExposure.normal.to_global(vessel.control_frame).normalized * starExposure.normal.to_global(staticFrame).normalized, accuracy).to_string())
         wait_until(fn() ->
             round_at(vesselExposure.exposure.to_global(vessel.control_frame).normalized * starExposure.exposure.to_global(staticFrame).normalized, accuracy) == 1
             && round_at(vesselExposure.normal.to_global(vessel.control_frame).normalized * starExposure.normal.to_global(staticFrame).normalized, accuracy) == 1
@@ -384,15 +390,15 @@ impl Ship {
             .filter(fn(s) -> s.has_engine())
             .sort_by(fn(s) -> s.activation_number)
             .reverse()
-        if (thrustStages.length > 0) thrustStages[0].activation_number else None()
+        if (thrustStages.length > 0) thrustStages[Array.First].activation_number else None()
     }
 
     sync fn throttle_current(self) -> float = {
         if(!self.firstThrustStage().defined)
-            return Throttle.Min
+            return Throttle.Shut
         self.ship.engines
             .sort_by(fn(e) -> e.current_throttle)
-            .reverse()[0].current_throttle
+            .reverse()[Array.First].current_throttle
     }
 
     sync fn thrust(self, context: ThrustSituationConst = ThrustSituation.Current) -> float =
@@ -414,7 +420,7 @@ impl Ship {
         self.stages[self.ship.staging.current].twr(thrustContext, massContext)
 
 
-    fn mass(self, context : MassStateConst = MassState.Total) -> float =
+    sync fn mass(self, context : MassStateConst = MassState.Total) -> float =
         self.ship.parts
             .filter(fn(p) -> !p.is_launch_clamp)
             .reduce(0.0, fn(mass, p) -> if (context == MassState.Total) mass + p.total_mass else mass + p.dry_mass)
@@ -475,229 +481,3 @@ impl Ship {
         }
     }
 }
-
-fn stage(ship: Ship, trigger: (need: bool, reason: string)[], verbose: bool) -> bool = {
-    const vessel = ship.ship
-    const oldStage = vessel.staging.current
-    const reason = trigger
-        .filter(fn(c) -> c.need)
-        .reduce("", fn(agg, c) -> agg + (if(agg.length > 0) "|" else "") + c.reason)
-    if(verbose) ship.print("(" + reason + ") -> Preparing to stage...")
-
-    if(atmosphere_depth(vessel.main_body) > vessel.altitude_sealevel
-    && vessel.situation != VesselSituation.Landed
-    && vessel.situation != VesselSituation.Splashed
-    && vessel.situation != VesselSituation.PreLaunch)
-        ship.align(vessel.surface_velocity, 5)
-
-    wait_until(fn() -> vessel.staging.ready)
-    vessel.staging.next()
-    wait_until(fn() -> vessel.staging.ready)
-
-    if(vessel.dynamic_pressure_kpa > 1)
-        sleep(1.0)
-
-    if(trigger[StagingCase.NOT_IGN].need)
-        wait_until(fn() -> ship.stages[ship.current_stage].ignited())
-
-    wait_until(fn() -> ship.update_stages("check_stage"))
-    if(verbose)
-        ship.print("STAGING (" + (oldStage).to_string() + " -> " + ship.current_stage.to_string() + ").")
-    ship.check_staging(verbose)
-}
-
-
-fn run_science(thisShip: Ship, experiments: Experiment[], verbose: bool = true) -> bool = {
-    if(Some(shipLocation) = thisShip.ship.research_location) {
-        if(verbose) {
-            for (e in experiments)
-                thisShip.print("Starting " + e.definition.id + " at " + shipLocation.body_name + "/" + shipLocation.science_situation.to_string() + "/" + shipLocation.science_region)
-        }
-        return experiments
-            .map(fn(e) -> e.run_experiment())
-            .exists(fn(done) -> done)
-    }
-    false
-}
-
-fn emmit_science(thisShip: Ship, reports: ResearchReport[], verbose: bool = true) -> bool = {
-    const toSendReports = reports
-        .filter(fn(r) -> r.transmission_percentage == 0.0 && r.transmission_size > 0.0 && (!r.transmission_status))
-        .reduce((reports: <ResearchReport>[], consumption: 0.0), fn(agg, r) -> if(agg.consumption + r.ec_required < thisShip.available_power()) (reports: agg.reports + r, consumption: agg.consumption + r.ec_required) else (reports: agg.reports, consumption: agg.consumption))
-    if(verbose) {
-        for (r in toSendReports.reports)
-                thisShip.print("Emitting " + r.definition.id + " from " + r.research_location.body_name + "/" + r.research_location.science_situation.to_string() + "/" + r.research_location.science_region)
-    }
-    toSendReports.reports
-        .map(fn(r) -> r.start_transmit())
-        .exists(fn(done) -> done)
-}
-
-// record of :
-// vector going from command module to theorical ideal sun direction. Magnitude is expected EC output not considering blocking bodies or parts, or Star ratio/distance.
-// vector to align with sun's first child normal to orbit
-// vector are local to celestial_frame
-sync fn ideal_exposure(vessel: Vessel) -> (exposure: Vec3, normal: Vec3) = {
-    const frame = vessel.control_frame
-
-    // OUT: No operational solar panel.
-// ksp::console::CONSOLE.print_line("OUT : No operational solar panel.")
-    if (!vessel.parts.exists(fn(p) -> p.solar_panel.defined && p.deployable.value.deploy_state == DeployableDeployState.Extended)) // No operational solar panel
-        return (exposure: vessel.global_up.to_local(frame), normal: vessel.global_facing.to_local(frame).vector)
-
-    // All solar panels
-    const solarPanelParts = vessel.parts
-        .filter(fn(p) -> p.solar_panel.defined) // solar panel
-        .filter(fn(p) -> p.deployable.value.deploy_state == DeployableDeployState.Extended)
-
-    // Static solar panels
-    const staticRotaries = group_statics_as_rotaries(solarPanelParts.filter(fn(p) -> !p.deployable.value.extendable))
-
-    const trueStatic = solarPanelParts.filter(fn(p) -> !p.deployable.value.extendable)
-        .filter(fn(ps) -> !staticRotaries.exists(fn(psr_arr) -> psr_arr.exists(fn(psr) -> ps.position == psr.position))) // TODO use part.id when available
-
-    const staticLightVector = trueStatic
-        .map(fn(p) -> - p.global_rotation.to_local(frame).right_vector.normalized * p.solar_panel.value.base_flow_rate) // coaxial to light vector, mag = max EC flow
-        .reduce(vec3(0.0, 0.0, 0.0), fn(vsum, v) -> vsum + v)
-
-    // Rotary solar panels. Normals to lightplanes are used as definition of planes.
-    const lightRotaries = solarPanelParts.filter(fn(p) -> p.deployable.value.extendable)
-        .map(fn(p) -> - p.global_rotation.to_local(frame).right_vector.normalized * p.solar_panel.value.base_flow_rate) // normal to light plane, mag = max EC flow
-        + enlight_static_as_rotaries(staticRotaries)
-
-    // OUT: No rotary. Process only statics.
-// ksp::console::CONSOLE.print_line("OUT : No rotary. Process only statics.")
-    if (lightRotaries.length == 0)
-        return (exposure: staticLightVector, normal: random_normal(trueStatic))
-
-    const lightPlanes = aggregate_rotaries_as_plane(lightRotaries)
-
-    const intersectCount = (((lightPlanes.length - 1)**2) + (lightPlanes.length - 1)) / 2 // triangular number
-
-    // OUT: Only 1 rotary. Process only statics + the rotary.
-// ksp::console::CONSOLE.print_line("OUT : Only 1 rotary. Process only statics + the rotary.")
-    if(intersectCount == 0) { // their is at least 1 plane. 0 plane case is already processed
-        const rotaryLightVector =
-            if(staticLightVector.magnitude > 0.0)
-                (staticLightVector - (lightPlanes[Array.First].normalized * lightPlanes[Array.First].dot(staticLightVector))) // rotary light vector oriented mostly at static light vector (projection of static vector on rotary plane)
-            else if(lightPlanes[Array.First].dot(vec3(1.0, 0.0, 0.0)) != lightPlanes[0].magnitude)
-                lightPlanes[Array.First].cross(vec3(1.0, 0.0, 0.0))
-            else
-                lightPlanes[Array.First].cross(vec3(0.0, 1.0, 0.0))
-        return (exposure: staticLightVector + rotaryLightVector, normal: staticLightVector.exclude_from(lightPlanes[Array.First] + random_normal(trueStatic)))
-    }
-// ksp::console::CONSOLE.print_line("intersectCount: " + intersectCount.to_string())
-
-    // const intersectPlanes = (0..intersectCount)
-    const intersectPlanes = (0..lightPlanes.length)
-        .flat_map(fn(i) -> ((i + 1)..lightPlanes.length).map(fn(j) -> lightPlanes[i].cross(lightPlanes[j]).normalized * (lightPlanes[i].magnitude + lightPlanes[j].magnitude)))
-        //.flat_map(fn(arr_intersect) -> arr_intersect) // intersect plane is best direction to light both light plane. Sum up all intersect.
-        // .reduce(<Vec3>[], fn(flat, arr_intersect) -> flat + arr_intersect) // intersect plane is best direction to light both light plane. Sum up all intersect.
-// ksp::console::CONSOLE.print_line("intersectPlanes.lenght: " + intersectPlanes.length.to_string())
-
-    const allLightVector = fasten_sum_unoriented_vectors(intersectPlanes, staticLightVector) + staticLightVector
-    const allLightVectorNormal = allLightVector.exclude_from(fasten_sum_unoriented_vectors(lightPlanes, staticLightVector))
-
-    // OUT: All.
-// ksp::console::CONSOLE.print_line("OUT : All.")
-    (exposure: allLightVector, normal: allLightVectorNormal)
-}
-
-// TODO externalize anonym function into named function in order to make code easier to read. As it should be more understandable, get rid of comments.
-sync fn group_statics_as_rotaries(staticSolarPanels: Part[]) -> Part[][] = {
-    if(staticSolarPanels.length < 2)
-        return [<Part>[]]
-
-    const accuracy = 2
-
-    (0..staticSolarPanels.length)
-        .flat_map(fn(i) -> ((i + 1)..staticSolarPanels.length).map(fn(j) -> (
-            partA: staticSolarPanels[i],
-            partB: staticSolarPanels[j],
-            normal: (- staticSolarPanels[i].global_rotation.right_vector)
-                .cross(- staticSolarPanels[j].global_rotation.right_vector)
-                .normalized * (staticSolarPanels[i].solar_panel.value.base_flow_rate + staticSolarPanels[j].solar_panel.value.base_flow_rate))
-        ))//.flat_map(fn(arr) -> arr) // record of all parts'pair normal registred in a flat array
-        .reduce(<(parts: Part[], normalId: GlobalVector)>[], fn(groups, partPair) -> { // group up parts with same normal
-            if(groups.length == Array.Empty) // init
-                return [(parts: [partPair.partA, partPair.partB], normalId: partPair.normal)]
-            if(groups.exists(fn(g) -> almost_equal_global(g.normalId, partPair.normal, partPair.partA.vessel.control_frame, accuracy))) // grow
-                return groups.map(fn(g) -> {
-                    if(almost_equal_global(g.normalId, partPair.normal, partPair.partA.vessel.control_frame, accuracy)) { // to group up
-                        if(g.parts.exists(fn(p) -> p.position == partPair.partA.position) && (!g.parts.exists(fn(p) -> p.position == partPair.partB.position))) // TODO prefer a part.id than a part.position when it will be available
-                            return (parts: g.parts + partPair.partB, normalId: g.normalId)
-                        if(g.parts.exists(fn(p) -> p.position == partPair.partB.position) && (!g.parts.exists(fn(p) -> p.position == partPair.partA.position))) // TODO prefer a part.id than a part.position when it will be available
-                            return (parts: g.parts + partPair.partA, normalId: g.normalId)
-                        return g
-                    } else // not concerned
-                        g
-                })
-            groups + (parts: [partPair.partA, partPair.partB], normalId: partPair.normal) // new
-        }).map(fn(r) -> r.parts) // get rid of normals
-        .filter(fn(a) -> round_at(a.reduce(vec3(0.0, 0.0, 0.0), fn(v, p) -> v + ((- p.global_rotation.to_local(p.vessel.control_frame).right_vector) * p.solar_panel.value.base_flow_rate)).magnitude, accuracy) == 0.0) // keep groups where (sum vec).magnitude == 0.0
-        .sort_by(fn(a) -> a.length)
-        .reverse()
-        .reduce(<Part[]>[], fn(clean, partArr) -> {
-            if(clean.length == Array.Empty)
-                return clean + partArr
-            return clean + partArr.filter(fn(part) -> !clean.flat_map(fn(a) -> a).exists(fn(p) -> p.position == part.position)) // TODO prefer a part.id than a part.position when it will be available
-        }) // deduplicate
-        .filter(fn(a) -> a.length > Array.Empty) // get rid of possible empties array
-}
-
-sync fn enlight_static_as_rotaries(staticSolarPanels: Part[][]) -> Vec3[] =
-    staticSolarPanels
-        .map(fn(circle) -> {
-            const vessel = circle[Array.First].vessel
-            const frame = vessel.control_frame
-            const accuracy = 2
-
-            const meanFlowRate = (circle.reduce(0.0, fn(sum, p) -> sum + p.solar_panel.value.base_flow_rate) / circle.length.to_float) * (Circle.Quarter / Circle.Full) // ((sum individual flow) / part_number) * mean_exposure
-
-            const legitimAxis = (- circle[Array.First].global_rotation.to_local(frame).right_vector)
-                .cross(- circle[circle.length - 1].global_rotation.to_local(frame).right_vector)
-                .normalized * meanFlowRate
-            if(round_at(legitimAxis.magnitude, accuracy) == 0.0)
-                return random_normal(circle)
-            legitimAxis
-        })
-
-sync fn random_normal(staticSolarPanels: Part[]) -> Vec3 = {
-    const staticLightVector = staticSolarPanels
-        .map(fn(p) -> - p.global_rotation.to_local(p.vessel.control_frame).right_vector.normalized * p.solar_panel.value.base_flow_rate) // coaxial to light vector, mag = max EC flow
-        .reduce(vec3(0.0, 0.0, 0.0), fn(vsum, v) -> vsum + v)
-    const staticLightVectorNormalCase0 = staticSolarPanels
-        .reduce(vec3(0.0, 0.0, 0.0), fn(sum, p) -> sum + p.global_rotation.to_local(p.vessel.control_frame).up_vector.normalized * p.solar_panel.value.base_flow_rate)
-    const staticLightVectorNormalCase1 = staticSolarPanels
-        .reduce(vec3(0.0, 0.0, 0.0), fn(sum, p) -> sum + p.global_rotation.to_local(p.vessel.control_frame).vector.normalized * p.solar_panel.value.base_flow_rate)
-    staticLightVector.exclude_from(if(staticLightVectorNormalCase0.magnitude > staticLightVectorNormalCase1.magnitude) staticLightVectorNormalCase0 else staticLightVectorNormalCase1)
-}
-
-// sum parallels planes
-sync fn aggregate_rotaries_as_plane(lightRotaries: Vec3[]) -> Vec3[] =
-    lightRotaries.reduce(<Vec3>[], fn(notParallel, normal) -> {
-        if(!notParallel.exists(fn(np) -> round_at(np.normalized.cross(normal.normalized).magnitude, 2) == 0.0)) // empty or not parallel
-            return notParallel + normal
-        return notParallel.map(fn(np) -> {
-            if(round_at(np.cross(normal).magnitude, 1) == 0.0) // sum up all parallel planes
-                np + (np.normalized.dot(normal.normalized) * normal) // force normal to be in the same direction than np
-            else
-                np
-        })
-    })
-
-
-sync fn fasten_sum_unoriented_vectors(unorientedVectors: Vec3[], reference: Vec3) -> Vec3 =
-    unorientedVectors.reduce(vec3(0.0, 0.0, 0.0), fn(vsum, v) -> {
-        if(round_at(reference.normalized.dot(v.normalized), 1) != 0.0) // mostly in direction of reference, if any
-            vsum + (v * (reference.normalized.dot(v.normalized)))
-        else
-            vsum + v
-    })
-
-// if(round_at(abs(g.normalId.dot(partPair.normal)), precision) == round_at(abs(g.normalId.magnitude * partPair.normal.magnitude), precision)) {
-// if(round_at(abs(g.normalId.cross(partPair.normal).magnitude), precision) == 0.0 && round_at(g.normalId.magnitude, precision) == round_at(partPair.normal.magnitude, precision) && partPair.partA.part_name == partPair.partB.part_name && (
-//     round_at(partPair.partA.global_position.to_local(partPair.partA.vessel.control_frame).x, precision) == round_at(partPair.partB.global_position.to_local(partPair.partB.vessel.control_frame).x, precision)
-//     || round_at(partPair.partA.global_position.to_local(partPair.partA.vessel.control_frame).y, precision) == round_at(partPair.partB.global_position.to_local(partPair.partB.vessel.control_frame).y, precision)
-//     || round_at(partPair.partA.global_position.to_local(partPair.partA.vessel.control_frame).z, precision) == round_at(partPair.partB.global_position.to_local(partPair.partB.vessel.control_frame).z, precision)
-//     )) {

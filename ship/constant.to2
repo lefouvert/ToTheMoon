@@ -63,7 +63,8 @@ pub const Twr: (Min: TwrConst, Ideal: TwrConst, Max: TwrConst) = (
 
 pub type ThrottleConst = float
 
-pub const Throttle: (Max: ThrottleConst, Min: ThrottleConst) = (
+pub const Throttle: (Max: ThrottleConst, Min: ThrottleConst, Shut: ThrottleConst) = (
     Max: 1.0,
-    Min: 0.0
+    Min: 0.00001,
+    Shut: 0.0
 )

@@ -8,10 +8,10 @@ use { CONSOLE } from ksp::console
 
 use { ThrustSituation } from ship::constant
 use { AscentProfile, AscentProfileConst } from maneuver::constant
-use { Circle, Sign } from math::constant
+use { Circle, Sign, Array } from math::constant
 use { Stage } from ship::stage
 use { Ship } from ship::ship
-use { Pid } from math::tool
+use { Pid } from math::feedback
 use { visViva, semi_major_axis } from body::orbit
 use { clear_altitude, atmosphere_depth } from body::atmosphere
 use { ascent_angle, latitude_from_angle, deviation, compassFromDirection, compassFromOrbit } from ship::navigation
@@ -52,7 +52,7 @@ sync fn direction_manager(ship: Ship, obt: Orbit, profile: AscentProfileConst) -
 
 sync fn controleThrottle(ship: Ship, obt: Orbit, profile: AscentProfileConst) -> float = {
     const maxAllowedThrottle = [ship.throttle_temperature(), ship.throttle_q(), ship.throttle_altitude(ship.apoapsis())]
-        .sort()[0]
+        .sort()[Array.First]
     const errorModeratorThrottle = ship.throttle_direction(direction_manager(ship, obt, profile), 1.0, 1.0)
     return maxAllowedThrottle * errorModeratorThrottle
 }

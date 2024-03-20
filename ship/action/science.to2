@@ -1,0 +1,28 @@
+use { Ship } from ship::ship
+use { Experiment, ResearchReport } from ksp::science
+
+pub fn run_science(thisShip: Ship, experiments: Experiment[], verbose: bool = true) -> bool = {
+    if(Some(shipLocation) = thisShip.ship.research_location) {
+        if(verbose) {
+            for (e in experiments)
+                thisShip.print("Starting " + e.definition.id + " at " + shipLocation.body_name + "/" + shipLocation.science_situation.to_string() + "/" + shipLocation.science_region)
+        }
+        return experiments
+            .map(fn(e) -> e.run_experiment())
+            .exists(fn(done) -> done)
+    }
+    false
+}
+
+pub fn emmit_science(thisShip: Ship, reports: ResearchReport[], verbose: bool = true) -> bool = {
+    const toSendReports = reports
+        .filter(fn(r) -> r.transmission_percentage == 0.0 && r.transmission_size > 0.0 && (!r.transmission_status))
+        .reduce((reports: <ResearchReport>[], consumption: 0.0), fn(agg, r) -> if(agg.consumption + r.ec_required < thisShip.available_power()) (reports: agg.reports + r, consumption: agg.consumption + r.ec_required) else (reports: agg.reports, consumption: agg.consumption))
+    if(verbose) {
+        for (r in toSendReports.reports)
+                thisShip.print("Emitting " + r.definition.id + " from " + r.research_location.body_name + "/" + r.research_location.science_situation.to_string() + "/" + r.research_location.science_region)
+    }
+    toSendReports.reports
+        .map(fn(r) -> r.start_transmit())
+        .exists(fn(done) -> done)
+}

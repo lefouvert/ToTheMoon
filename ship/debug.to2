@@ -1,9 +1,13 @@
 use { CONSOLE } from ksp::console
+use { DEBUG } from ksp::debug
 use { Vessel } from ksp::vessel
+use { Vec3 } from ksp::math
 
+use { ThrustSituation } from ship::constant
+use { ULTRAMARINE, GREY, CRIMSON, WHITE, BLUE, RED, GREEN, YELLOW } from ui::constant
+use { Array } from math::constant
 use { Stage } from ship::stage
 use { Ship } from ship::ship
-use { ThrustSituation } from ship::constant
 
 pub fn part_debug(vessel: Vessel) -> Unit = {
     CONSOLE.print_line("A-D-Part name------------------------")
@@ -99,4 +103,19 @@ pub fn resources_debug(vessel : Vessel) -> Unit = {
         p.resources.list
             .map(fn(rl) -> CONSOLE.print_line("    " + rl.resource.display_name + "|" + rl.resource.display_abbreviation + "|" + rl.resource.name + "|" + rl.resource.id.to_string()))
     })
+}
+
+pub fn park_debug(vessel: Vessel, starExposure: (exposure: Vec3, normal: Vec3), vesselExposure: (exposure: Vec3, normal: Vec3)) -> Unit = {
+    const staticFrame = vessel.main_body.celestial_frame
+    const initialVesselExposure = (exposure: vesselExposure.exposure.to_global(vessel.control_frame).to_local(staticFrame), normal: vesselExposure.normal.to_global(vessel.control_frame).to_local(staticFrame))
+    const initialFacing = vessel.global_facing.vector
+    DEBUG.clear_markers()
+    DEBUG.add_vector(fn() -> vessel.command_modules[Array.First].part.global_position, fn() -> initialVesselExposure.exposure.to_global(staticFrame).normalized * 25, ULTRAMARINE, "initial best exposure", 2)
+    DEBUG.add_vector(fn() -> vessel.command_modules[Array.First].part.global_position, fn() -> initialVesselExposure.normal.to_global(staticFrame).normalized * 25, GREY, "initial best normal", 2)
+    DEBUG.add_vector(fn() -> vessel.command_modules[Array.First].part.global_position, fn() -> initialFacing.normalized * 25, CRIMSON, "initial facing", 2)
+    DEBUG.add_vector(fn() -> vessel.command_modules[Array.First].part.global_position, fn() -> vesselExposure.normal.to_global(vessel.control_frame).normalized * 50, WHITE, "best normal", 1)
+    DEBUG.add_vector(fn() -> vessel.command_modules[Array.First].part.global_position, fn() -> vesselExposure.exposure.to_global(vessel.control_frame).normalized * 50, BLUE, "best exposure", 1)
+    DEBUG.add_vector(fn() -> vessel.command_modules[Array.First].part.global_position, fn() -> vessel.global_facing.vector * 50, RED, "facing", 1)
+    DEBUG.add_vector(fn() -> vessel.command_modules[Array.First].part.global_position, fn() -> starExposure.normal.to_global(staticFrame).normalized * 75, GREEN, "ObtNormal", 0.5)
+    DEBUG.add_vector(fn() -> vessel.command_modules[Array.First].part.global_position, fn() -> starExposure.exposure.to_global(staticFrame).normalized * 75, YELLOW, "Kerbol", 0.5)
 }

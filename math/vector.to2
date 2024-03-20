@@ -1,0 +1,29 @@
+use { Vec3, vec3, GlobalVector, TransformFrame } from ksp::math
+use { acos_deg, sqrt, atan2_deg, cos_deg, sin_deg } from core::math
+
+use { round_at } from math::rounding
+
+pub sync fn cartesian_to_polar(v: Vec3) -> Vec3 = { // norme ISO/CEI 80000-2
+    // rho: magnitude, theta: colatitude, phi: longitude
+    const rho = sqrt((v.x**2) + (v.y**2) + (v.z**2))
+    const theta = acos_deg(v.z / rho)
+    const phi = atan2_deg(v.y, v.x)
+    vec3(rho, theta, phi)
+}
+
+pub sync fn polar_to_cartesian(p: Vec3) -> Vec3 = { // norme ISO/CEI 80000-2
+    // p(x, y, z) = (rho, theta, phi)
+    const x = p.x * sin_deg(p.y) * cos_deg(p.z)
+    const y = p.x * sin_deg(p.y) * sin_deg(p.z)
+    const z = p.x * cos_deg(p.y)
+    vec3(x, y, z)
+}
+
+pub sync fn almost_equal_global(vectorA: GlobalVector, vectorB: GlobalVector, frame: TransformFrame, accuracy: int) -> bool =
+    almost_equal(vectorA.to_local(frame), vectorB.to_local(frame), accuracy)
+
+pub sync fn almost_equal(vectorA: Vec3, vectorB: Vec3, accuracy: int) -> bool = (
+    round_at(vectorA.x, accuracy) == round_at(vectorB.x, accuracy)
+    && round_at(vectorA.y, accuracy) == round_at(vectorB.y, accuracy)
+    && round_at(vectorA.z, accuracy) == round_at(vectorB.z, accuracy)
+)

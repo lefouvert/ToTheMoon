@@ -9,9 +9,50 @@ use { ascent } from maneuver::ascent
 use { fast_orbit, create_orbit, semi_major_axis, orbitalToGeoLongitude } from body::orbit
 use { clear_altitude } from body::atmosphere
 
+use { log10, floor, abs, round, MAX_FLOAT } from core::math
+sync fn test(value: float, significantDigit: int = 6) -> float = {
+        const shiftSig = (
+        if (significantDigit < 0)
+            1
+        else if (significantDigit >= log10(MAX_FLOAT).to_int)
+            log10(MAX_FLOAT).to_int
+        else
+            significantDigit
+    ) - 1
+    const shiftLog = floor(log10(abs(value)))
+ksp::console::CONSOLE.print_line(shiftSig.to_string())
+ksp::console::CONSOLE.print_line(shiftLog.to_string())
+    let result = round(value / 10.0**(shiftLog - shiftSig)) * 10.0**(shiftLog - shiftSig) // Erase unsignificants digits
+ksp::console::CONSOLE.print_line(result.to_string())
+result
+}
+
 /// Entry Point
 pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
     ksp::console::CONSOLE.clear()
+
+test(2984)
+
+ksp::console::CONSOLE.print_line("stabilisation")
+vessel.release_control()
+vessel.autopilot.mode = ksp::vessel::AutopilotMode.StabilityAssist
+sleep(10)
+
+ksp::console::CONSOLE.print_line("applying rot")
+const wheel = std::control::steering::control_steering(vessel)
+wheel.set_direction(ksp::math::euler(0.0, 360, 270))
+sleep(30)
+
+ksp::console::CONSOLE.print_line("release")
+wheel.release()
+vessel.autopilot.mode = ksp::vessel::AutopilotMode.StabilityAssist
+sleep(10)
+
+ksp::console::CONSOLE.print_line("end")
+return Ok({})
+
+
+
 ksp::console::CONSOLE.print_line("pressure: " + vessel.static_pressure_kpa.to_string())
 
     const ship = Ship(vessel)

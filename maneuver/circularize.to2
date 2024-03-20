@@ -5,15 +5,27 @@ use { current_time, yield, wait_until } from ksp::game
 
 use { Apsis, ApsisConst, ApsisModification, ApsisModificationConst } from maneuver::constant
 use { Throttle, ThrustSituation } from ship::constant
-use { Circle, Sexagesimal } from math::constant
+use { Circle, Sexagesimal, Array } from math::constant
 use { Ship } from ship::ship
 use { visViva, semi_major_axis, semi_minor_axis, param_deltaV, eta_trueAnomaly, prograde_elevation, radius_true_anomaly } from body::orbit
 use { atmosphere_depth } from body::atmosphere
-use { burntime, compassFromOrbit, compassFromDirection } from ship::navigation
+use { burntime, compassFromOrbit, compassFromDirection, inertia } from ship::navigation
+use { significant_digit } from math::rounding
 use { engineeringNotation } from ui::unit
 
 
-const MIN_BURNTIME: float = 5.0
+// const MIN_BURNTIME: float = 5.0 // ok 80km
+// const MIN_BURNTIME: float = 10.0 // ok 200 km
+// const MIN_BURNTIME: float = 7.0 // ok 200 km
+// const MIN_BURNTIME: float = 6.0 // ok 200 km
+// const MIN_BURNTIME: float = 15.0 // ok 2000km
+// const MIN_BURNTIME: float = 12.0 // ok 2000km
+// const MIN_BURNTIME: float = 10.0 // ko 2000km
+// const MIN_BURNTIME: float = 100.0 // ok but verylong for 2000km
+
+
+// const MIN_BURNTIME: float = 3.0 //eq dep
+const MIN_BURNTIME: float = 5.0 //eq dep
 
 pub fn circularize(ship: Ship, way: ApsisModificationConst = ApsisModification.Cheaper) -> Result<Unit, string> = {
     const vessel = ship.ship
@@ -91,16 +103,45 @@ sync fn controleThrottle(ship: Ship, altitude: float, burntime: float, thrustTru
     const vessel = ship.ship
 
     const etaThrust = eta_trueAnomaly(vessel.orbit, thrustTrueAno)
+
+
+// TODO current : time to react = 1 second. Add parametrizable time to react (fn weight ?)
+// note eccentricity have influence on MIN_BURNTIME
+// TODO MIN_BURNTIME should be fn alt
+// TODO constant speed of light in vacuum = 299792458
+// ksp::console::CONSOLE.print_at(1, 50, "mass: " + ship.mass().to_string())
+// ksp::console::CONSOLE.print_at(2, 50, "inertia: " + (ship.mass()/core::math::sqrt(1 - ((vessel.orbital_velocity.magnitude**2)/(299792458**2)))).to_string())
+// ksp::console::CONSOLE.print_at(3, 50, "Alt: " + altitude.to_string())
+    // base
+    // const throttleTime =
+    //     if (burntime < 1 && etaThrust > 0)
+    //         clamp((burntime - etaThrust + MIN_BURNTIME) * burntime, Throttle.Shut, Throttle.Max)
+    //     else if (burntime > 1)
+    //         clamp(burntime - etaThrust + MIN_BURNTIME, Throttle.Shut, Throttle.Max)
+    //     else
+    //         Throttle.Shut
+
+    const reactionTime = fn() -> ship.twr()/ship::constant::Twr.Ideal
+
+    // not bad
     const throttleTime =
         if (burntime < 1 && etaThrust > 0)
-            clamp((burntime - etaThrust + MIN_BURNTIME) * burntime, Throttle.Min, Throttle.Max)
+            clamp((burntime - etaThrust + core::math::max(MIN_BURNTIME, reactionTime() + inertia(ship))) * burntime, Throttle.Min, Throttle.Max)
         else if (burntime > 1)
-            clamp(burntime - etaThrust + MIN_BURNTIME, Throttle.Min, Throttle.Max)
+            clamp((burntime - etaThrust + core::math::max(MIN_BURNTIME, reactionTime() + inertia(ship)) ) / reactionTime(), Throttle.Shut, Throttle.Max)
         else
-            Throttle.Min
+            Throttle.Shut
+
+    // Meh
+    // const throttleTime =
+    //     if (etaThrust > 0)
+    //         clamp((burntime - etaThrust + core::math::max(MIN_BURNTIME, reactionTime + inertia()) ) / reactionTime, Throttle.Shut, Throttle.Max)
+    //     else
+    //         Throttle.Shut
+
 
     const maxAllowedThrottle = [throttleTime, ship.throttle_temperature(), ship.throttle_q(), ship.throttle_altitude(altitude)]
-        .sort()[0]
+        .sort()[Array.First]
 
 // ksp::console::CONSOLE.print_at(9, 50, "ttTi ttTe ttQ ttAl ttDi")
 // ksp::console::CONSOLE.print_at(10, 50, throttleTime.to_fixed(2))
@@ -123,6 +164,7 @@ sync fn controleThrottle(ship: Ship, altitude: float, burntime: float, thrustTru
 pub fn set_apsis_fine(ship: Ship, apsis: ApsisConst, altitude:float) -> Result<Unit, string> = {
     const vessel = ship.ship
     const body = vessel.main_body
+    const accuracy = 7
 
     const initialArgOfPeriapsis = vessel.orbit.argument_of_periapsis
 
@@ -142,10 +184,16 @@ pub fn set_apsis_fine(ship: Ship, apsis: ApsisConst, altitude:float) -> Result<U
 
     const deltaVLeft = fn() -> param_deltaV(vessel.orbit, semi_major_axis(body, toKeepApsis(), altitude), vessel.orbit.inclination, toKeepApsis(), toKeepApsis())
 
+//TODO not only round, but use only significant digit
+    // const done = fn() -> { // round_at(x, 5) ?
+    //     if(round(staticApsis) == round(altitude))
+    //         return round(toKeepApsis()) == round(toSetApsis())
+    //     if(thrustOrientation == ApsisModification.Raise) (round(toSetApsis()) >= round(altitude)) (round(toSetApsis()) <= round(altitude))
+    // }
     const done = fn() -> {
-        if(round(staticApsis) == round(altitude))
-            return round(toKeepApsis()) == round(toSetApsis())
-        if(thrustOrientation == ApsisModification.Raise) (toSetApsis() >= altitude) (toSetApsis() <= altitude)
+        if(round(significant_digit(staticApsis, accuracy)) == round(significant_digit(altitude, accuracy)))
+            return round(significant_digit(toKeepApsis(), accuracy)) == round(significant_digit(toSetApsis(), accuracy))
+        if(thrustOrientation == ApsisModification.Raise) (round(significant_digit(toSetApsis(), accuracy)) >= round(significant_digit(altitude, accuracy))) else (round(significant_digit(toSetApsis(), accuracy)) <= round(significant_digit(altitude, accuracy)))
     }
 
     ship.set_throttle_altitude(altitude, MIN_BURNTIME / 3)

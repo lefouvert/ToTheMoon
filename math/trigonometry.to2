@@ -1,0 +1,40 @@
+use { clamp, cos_deg, sin_deg, tan_deg, asin_deg, acos_deg } from core::math
+
+use { Circle } from math::constant
+
+// headway between 0 to 2// headway between 0 to 2
+// 1|
+//   \
+// 0   _1
+pub sync fn early_weight_convex(headway: float) -> float =
+    asin_deg(1.0 - clamp(headway, 0.0, 2.0)) / Circle.Quarter
+
+
+// headway between -1 to 1
+// 1 _
+//    \
+// 0   |1
+pub sync fn early_weight_concave(headway: float) -> float =
+    acos_deg(clamp(headway, -1.0, 1.0)) / Circle.Quarter
+
+// headway between -1 to 1
+// 1    |
+//     /
+// 0 _  1
+pub sync fn late_weight_convex(headway: float) -> float =
+    asin_deg(clamp(headway, -1.0, 1.0)) / Circle.Quarter
+
+// headway between 0 to 2
+// 1   _
+//   /
+// 0|   1
+pub sync fn late_weight_concave(headway: float) -> float =
+    acos_deg(1.0 - clamp(headway, 0.0, 2.0)) / Circle.Quarter
+
+// headway between -1 to 1
+//  1   _
+//    /   \
+// -1|  0  |1
+// y = 1 + -x × tan(x) / (pi/2)
+pub sync fn symetric_concave(headway: float) -> float =
+    1 - clamp(headway, -1.0, 1.0) * tan_deg(clamp(headway, -1.0, 1.0)) / Circle.Quarter

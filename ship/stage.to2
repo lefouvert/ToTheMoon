@@ -134,6 +134,7 @@ impl Stage {
 //  stage.engines.activation.exists(fn(e) -> p.decouple_stage <= e.decouple_stage) && !p.is_launch_clamp)
 
 // TODO for mixed fuel, consider ratio between fuel
+// TODO remove EngineFuel and Resource, use engine.current_engine_mode.propellant
 pub sync fn mass_from(stage: Stage, context : MassStateConst = MassState.Total) -> float =
     stage.ship.parts
         .filter(fn(p) -> stage.engines.activation.exists(fn(e) -> p.decouple_stage <= e.decouple_stage) && !p.is_launch_clamp)

@@ -1,14 +1,14 @@
 use { Vessel } from ksp::vessel
 use { Orbit, GeoCoordinates } from ksp::orbit
 use { GlobalVector, Direction } from ksp::math
-use { max, min, clamp, clamp_degrees180, clamp_degrees360, sin_deg, cos_deg, asin_deg, acos_deg, atan2_deg, log, abs } from core::math
+use { max, min, clamp, clamp_degrees180, clamp_degrees360, sin_deg, cos_deg, asin_deg, acos_deg, atan2_deg, log, abs, sqrt } from core::math
 
-use { Circle, Sign } from math::constant
+use { Circle, Sign, VacuumLightSpeed } from math::constant
 use { AscentProfile, AscentProfileConst } from maneuver::constant
 use { Ship } from ship::ship
 
 
-// dvToMass ?
+// TODO dvToMass ?
 
 pub sync fn deviation (aimDir: Direction, actualDir : Direction) -> float = {
     return aimDir.vector.angle_to(actualDir.vector)
@@ -18,7 +18,8 @@ pub sync fn ascent_angle(currentApoapsis: float, aimedAlt:float, profile: Ascent
     if(profile == AscentProfile.Trigonometric)
         return acos_deg(clamp((currentApoapsis/ aimedAlt) - 1, -1, 1)) - Circle.Quarter
     Circle.Quarter - max(0.0, log(currentApoapsis * (Circle.Quarter / aimedAlt) + 1)) * (Circle.Quarter / log(Circle.Quarter))
-    // TODO gravity turn
+    // TODO gravity turn (just aim for prograde)
+    // TODO (elsewhere) auto-toggle between modes : low orbit : trigo, high orbit log, both switch on gravity when high enough (aka when computed prograde elevation cross orbital prograde elevation)
 }
 
 pub sync fn latitude_from_angle(angle: float) -> float =
@@ -61,6 +62,8 @@ pub sync fn burntime(ship: Ship, deltaV: float) -> float = {
     }
     time
 }
+
+pub sync fn inertia(ship: Ship) -> float = (ship.mass() / sqrt(1 - ((ship.ship.orbital_velocity.magnitude**2) / (VacuumLightSpeed**2))))
 
 // pub sync fn expected_longitude(latitude: float, orbit: Orbit) -> Option<(ascendingNodeSide: float, descendingNodeSide: float)> = {
 //     if(abs(latitude) > latitude_from_angle(orbit.inclination))

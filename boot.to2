@@ -6,6 +6,7 @@ use { MAINFRAME, wait_until } from ksp::game
 use { Vessel } from ksp::vessel
 
 use { Ship } from ship::ship
+use { Array } from math::constant
 
 // const ship: Cell<Option<Ship>> = Cell(None())
 
@@ -40,11 +41,11 @@ pub fn main_flight(vessel: Vessel, missionFolder : string = "mission") -> Result
     CONSOLE.print_line("template : " + vesselName)
 
     if (foundProcesses.length > 0) {
-        CONSOLE.print_line("found : " + foundProcesses[0].name)
+        CONSOLE.print_line("found : " + foundProcesses[Array.First].name)
         CONSOLE.print_line("===============================")
         CONSOLE.print_line(vessel.name + " start mission")
         // lower the value is, better the process name is
-        const mission = MAINFRAME.find_process(foundProcesses[0].name).value
+        const mission = MAINFRAME.find_process(foundProcesses[Array.First].name).value
         mission.start()
         wait_until(fn() -> mission.is_running)
         wait_until(fn() -> !mission.is_running)

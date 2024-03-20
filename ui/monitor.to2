@@ -79,7 +79,7 @@ pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
         const updateLabel = dialog.add_label("TO UPDATE", Align.Stretch)
         const blockRoot = dialog.add_horizontal(blockGap)
             const blockHardware = blockRoot.add_vertical(0, Align.Stretch)
-                const buttonSwitch = blockHardware.add_button("Switch to 'Current as ON'", Align.Stretch)
+                const buttonSwitch = blockHardware.add_button("Toggle to 'Current as ON'", Align.Stretch)
                     buttonSwitch.font_size = fontSize
                     buttonSwitch.on_click(fn() -> {
                         if(displayMode.value == ThrustSituation.Current) {

@@ -34,7 +34,7 @@ pub fn test_language(vessel: Vessel) -> Unit = {
 
 
     // const emtpy = [1, 2, 3, 4, 5, 6]
-    //     .filter(fn(i) -> false)[0]
+    //     .filter(fn(i) -> false)[Array.First]
 
     CONSOLE.print_line(toto)
 

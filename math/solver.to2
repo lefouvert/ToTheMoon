@@ -1,0 +1,8 @@
+use { sqrt } from core::math
+
+pub sync fn quadratic_eq(a: float, b: float, c: float) -> Option<(soluce1: float, soluce2: float)> = {
+    // where ax² + bx + c = 0
+    const dicriminant = (b**2) - 4*a*c
+    if (dicriminant > 0.0)
+        (soluce1: (-b + sqrt(dicriminant)) / (2 * a), soluce2: (-b - sqrt(dicriminant)) / (2 * a))
+}

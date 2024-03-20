@@ -1,0 +1,17 @@
+use { log10, round, floor, abs, MAX_FLOAT } from core::math
+
+pub sync fn round_at(value: float, decimals: int) -> float =
+    (round(value * (10**decimals)) / (10**decimals))
+
+pub sync fn significant_digit(value: float, significantDigit: int = 6) -> float = {
+    const shiftSig = (
+        if (significantDigit < 0)
+            1
+        else if (significantDigit >= log10(MAX_FLOAT).to_int)
+            log10(MAX_FLOAT).to_int
+        else
+            significantDigit
+    ) - 1
+    const shiftLog = floor(log10(abs(value)))
+    round(value / 10.0**(shiftLog - shiftSig)) * 10.0**(shiftLog - shiftSig) // Erase unsignificants digits
+}
