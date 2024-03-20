@@ -128,15 +128,26 @@ impl Ship {
         return true
     }
 
+    fn point_to_onthefly(self, pointToLook: Vec3) -> Vec3 = {
+        const vessel = self.ship
+        // Enable SAS
+        if(vessel.autopilot.enabled != true || vessel.autopilot.mode != AutopilotMode.Autopilot) {
+            vessel.autopilot.enabled = true
+            vessel.autopilot.mode = AutopilotMode.Autopilot
+        }
+        vessel.autopilot.target_orientation = pointToLook
+    }
+
     // fn align(self, direction : Direction, delta: float = 1.0) -> bool = { // in celectial frame
     fn align(self, pointToLook : Vec3, delta: float = 1.0) -> bool = { // in celectial frame
         if(!self.is_maneuverable())
             return false
 
-        // Enable SAS
-        self.ship.autopilot.enabled = true
-        self.ship.autopilot.mode = AutopilotMode.Autopilot
-        self.ship.autopilot.target_orientation = pointToLook
+        self.point_to_onthefly(pointToLook)
+        // // Enable SAS
+        // self.ship.autopilot.enabled = true
+        // self.ship.autopilot.mode = AutopilotMode.Autopilot
+        // self.ship.autopilot.target_orientation = pointToLook
 
         // Wait for alignment
         while(self.ship.facing.vector.angle_to(pointToLook) > delta) yield()
@@ -146,7 +157,7 @@ impl Ship {
         true
     }
 
-    fn park(self, rought: bool = false, verbose: bool = true) -> bool = {
+    fn park(self, rought: bool = false, verbose: bool = true) -> Direction = {
         const vessel = self.ship
         const staticFrame = vessel.main_body.celestial_frame
         const accuracy = if(rought) 2 else 3
@@ -170,8 +181,9 @@ ship::debug::park_debug(vessel, starExposure, vesselExposure)
 ksp::console::CONSOLE.print_line((starDir * vesselDir.inverse * vessel.global_facing.to_local(staticFrame)).to_string())
         const steering = control_steering(vessel)
         const rotation = starDir * vesselDir.inverse * vessel.global_facing.to_local(staticFrame)
-        const rotationE = ksp::math::euler(core::math::clamp_degrees180(rotation.euler.x), core::math::clamp_degrees180(rotation.euler.y), core::math::clamp_degrees180(rotation.euler.z))
-        steering.set_direction(rotationE)
+        // const rotationE = ksp::math::euler(core::math::clamp_degrees180(rotation.euler.x), core::math::clamp_degrees180(rotation.euler.y), core::math::clamp_degrees180(rotation.euler.z))
+        // steering.set_direction(rotationE)
+        steering.set_direction(rotation)
 ksp::console::CONSOLE.print_line("wait aligned and stop moving: " + round_at(vesselExposure.exposure.to_global(vessel.control_frame).normalized * starExposure.exposure.to_global(staticFrame).normalized, accuracy).to_string() + "|" + round_at(vesselExposure.normal.to_global(vessel.control_frame).normalized * starExposure.normal.to_global(staticFrame).normalized, accuracy).to_string())
         wait_until(fn() ->
             round_at(vesselExposure.exposure.to_global(vessel.control_frame).normalized * starExposure.exposure.to_global(staticFrame).normalized, accuracy) == 1
@@ -184,7 +196,7 @@ ksp::console::CONSOLE.print_line("wait aligned and stop moving: " + round_at(ves
         if(verbose)
             self.print("Stationed")
 
-        true
+        rotation
     }
 
     fn dock(self, vessel: Vessel) -> bool = {

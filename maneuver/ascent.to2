@@ -32,6 +32,7 @@ sync fn direction_manager(ship: Ship, obt: Orbit, profile: AscentProfileConst) -
             Circle.None
         else
             clamp_degrees180(obt.inclination - vessel.orbit.inclination)
+    // TODO inclination issue at high alt
 
     const uTurnSoftener = clamp(abs(sin_deg(inclinationDifference)), cos_deg(inclinationDifference), 1)
     const azimuthCorrection = (Circle.Semi * headway) * (-inclinationDifference * uTurnSoftener / (Circle.Quarter / 2)) // Circle.Semi and (Circle.Quarter / 2) are arbitrary to pump up azimuthCorrection
@@ -68,12 +69,15 @@ pub fn ascent (ship : Ship, obt: Orbit, profile: AscentProfileConst = AscentProf
         ship.check_jettison()
         ship.check_deploy()
         ship.check_science()
-        // Enable SAS
-        if(vessel.autopilot.enabled != true || vessel.autopilot.mode != AutopilotMode.Autopilot) {
-            vessel.autopilot.enabled = true
-            vessel.autopilot.mode = AutopilotMode.Autopilot
-        }
-        vessel.autopilot.target_orientation = direction_manager(ship, obt, profile).vector
+
+        ship.point_to_onthefly(direction_manager(ship, obt, profile).vector)
+        // // Enable SAS
+        // if(vessel.autopilot.enabled != true || vessel.autopilot.mode != AutopilotMode.Autopilot) {
+        //     vessel.autopilot.enabled = true
+        //     vessel.autopilot.mode = AutopilotMode.Autopilot
+        // }
+        // vessel.autopilot.target_orientation = direction_manager(ship, obt, profile).vector
+
 
         if (ship.deltaV() < 1)
             return Err("Not enought fuel to reach a " + engineeringNotation(obt.periapsis) + "m. suborbital flight above " + obt.reference_body.name)

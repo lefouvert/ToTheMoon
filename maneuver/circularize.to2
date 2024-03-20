@@ -212,12 +212,14 @@ pub fn set_apsis_fine(ship: Ship, apsis: ApsisConst, altitude:float) -> Result<U
         ship.check_deploy()
         ship.check_science()
 
-        // Enable SAS
-        if(vessel.autopilot.enabled != true || vessel.autopilot.mode != AutopilotMode.Autopilot) {
-            vessel.autopilot.enabled = true
-            vessel.autopilot.mode = AutopilotMode.Autopilot
-        }
-        vessel.autopilot.target_orientation = direction_manager(ship, thrustTrueAno(), thrustOrientation, staticApsis - toKeepApsis()).vector
+
+        ship.point_to_onthefly(direction_manager(ship, thrustTrueAno(), thrustOrientation, staticApsis - toKeepApsis()).vector)
+        // // Enable SAS
+        // if(vessel.autopilot.enabled != true || vessel.autopilot.mode != AutopilotMode.Autopilot) {
+        //     vessel.autopilot.enabled = true
+        //     vessel.autopilot.mode = AutopilotMode.Autopilot
+        // }
+        // vessel.autopilot.target_orientation = direction_manager(ship, thrustTrueAno(), thrustOrientation, staticApsis - toKeepApsis()).vector
 
         if (ship.deltaV() < 1)
             return Err("Not enought fuel to reach a " + engineeringNotation(altitude) + "m. " + (if(apsis == Apsis.Periapsis) "periapsis" else "apoapsis") + " above " + body.name)
