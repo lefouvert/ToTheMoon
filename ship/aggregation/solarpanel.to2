@@ -69,12 +69,12 @@ sync fn group_statics_as_rotaries(staticSolarPanels: Part[]) -> Part[][] = {
         .filter(exclude_asymetric_enlightenment)
         .sort_by(fn(a) -> a.length)
         .reverse()
-        .reduce(<Part[]>[], deduplicate) // TODO
-        // .reduce(<Part[]>[], fn(clean, partArr) -> {
-        //     if(clean.length == Array.Empty)
-        //         return clean + partArr
-        //     return clean + partArr.filter(fn(part) -> !clean.flat_map(fn(a) -> a).exists(fn(p) -> p.position == part.position)) // TODO prefer a part.id than a part.position when it will be available
-        // }) // deduplicate
+        // .reduce(<Part[]>[], deduplicate) // TODO
+        .reduce(<Part[]>[], fn(clean, partArr) -> {
+            if(clean.length == Array.Empty)
+                return clean + partArr
+            return clean + partArr.filter(fn(part) -> !clean.flat_map(fn(a) -> a).exists(fn(p) -> p.position == part.position)) // TODO prefer a part.id than a part.position when it will be available
+        }) // deduplicate
         .filter(fn(a) -> a.length > Array.Empty)
 }
 
@@ -107,11 +107,11 @@ sync fn exclude_asymetric_enlightenment(panels: Part[]) -> bool =
     round_at(panels.reduce(vec3(0.0, 0.0, 0.0), fn(v, p) ->
         v + ((- p.global_rotation.to_local(p.vessel.control_frame).right_vector) * p.solar_panel.value.base_flow_rate)).magnitude, accuracy) == 0.0
 
-sync fn deduplicate(clean: Part[][], partArr: Part[]) -> Part[][] = {
-    if(clean.length == Array.Empty)
-        clean + [partArr]
-    clean + [partArr.filter(fn(part) -> !clean.flat_map(fn(a) -> a).exists(fn(p) -> p.position == part.position))] // TODO prefer a part.id than a part.position when it will be available
-}
+// sync fn deduplicate(clean: Part[][], partArr: Part[]) -> Part[][] = {
+//     if(clean.length == Array.Empty)
+//         clean + [partArr]
+//     clean + [partArr.filter(fn(part) -> !clean.flat_map(fn(a) -> a).exists(fn(p) -> p.position == part.position))] // TODO prefer a part.id than a part.position when it will be available
+// }
 
 
 sync fn enlight_static_as_rotaries(staticSolarPanels: Part[][]) -> Vec3[] = {
