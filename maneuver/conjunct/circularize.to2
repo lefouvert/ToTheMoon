@@ -1,0 +1,51 @@
+use { round } from core::math
+use { Direction } from ksp::math
+
+use { Apsis, ApsisModification, ApsisModificationConst } from maneuver::constant
+use { Ship } from ship::ship
+use { set_apsis_fine } from maneuver::setapsis
+use { semi_major_axis, param_deltaV } from body::orbit
+use { atmosphere_depth } from body::atmosphere
+use { engineeringNotation } from ui::unit
+
+
+pub fn circularize(ship: Ship, way: ApsisModificationConst = ApsisModification.Cheaper) -> Result<Unit, string> = {
+    const vessel = ship.ship
+    const body = vessel.main_body
+
+    if(ship.periapsis() < atmosphere_depth(body) && (!vessel.orbit.apoapsis.defined))
+        return Err("Unable to circularize " + vessel.name)
+    if(ship.periapsis() < atmosphere_depth(body) && way == ApsisModification.Decrease)
+        return Err("Unable to circularize " + vessel.name + " at " + engineeringNotation(ship.periapsis()) + "m because it's below " + vessel.main_body.name + "'s atmosphere.")
+    if((!vessel.orbit.apoapsis.defined) && way == ApsisModification.Raise)
+        return Err("Unable to circularize " + vessel.name + " at apoapsis because of hyperbolic orbit (escape " + vessel.main_body.name + "'s sphere of influence)")
+
+    if(way == ApsisModification.Raise)
+        return set_apsis_fine(ship, Apsis.Periapsis, ship.apoapsis())
+    else if(way == ApsisModification.Decrease)
+        return set_apsis_fine(ship, Apsis.Apoapsis, ship.periapsis())
+
+    if(ship.periapsis() < atmosphere_depth(body))
+        return set_apsis_fine(ship, Apsis.Periapsis, ship.apoapsis())
+    if((!vessel.orbit.apoapsis.defined))
+        return set_apsis_fine(ship, Apsis.Apoapsis, ship.periapsis())
+
+    const deltaVRise = param_deltaV(
+        vessel.orbit,
+        semi_major_axis(body, ship.apoapsis(), ship.apoapsis()),
+        vessel.orbit.inclination,
+        ship.apoapsis(),
+        ship.apoapsis()
+    )
+    const deltaVDecrease = param_deltaV(
+        vessel.orbit,
+        semi_major_axis(body, ship.periapsis(), ship.periapsis()),
+        vessel.orbit.inclination,
+        ship.periapsis(),
+        ship.periapsis()
+    )
+
+    if(deltaVDecrease < deltaVRise)
+        return set_apsis_fine(ship, Apsis.Apoapsis, ship.periapsis())
+    return set_apsis_fine(ship, Apsis.Periapsis, ship.apoapsis())
+}

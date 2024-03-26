@@ -1,5 +1,11 @@
 use { RgbaColor, color } from ksp::console
 
+pub type StringConst = string
+
+pub const String: (Empty: StringConst) = (
+    Empty: ""
+)
+
 pub const WHITE: RgbaColor = color(1.0, 1.0, 1.0, 1.0)
 pub const BLACK: RgbaColor = color(0.0, 0.0, 0.0, 1.0)
 pub const GREY: RgbaColor = color(0.5, 0.5, 0.5, 1.0)

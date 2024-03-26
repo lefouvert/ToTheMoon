@@ -16,7 +16,7 @@ pub sync fn ideal_exposure(vessel: Vessel) -> (exposure: Vec3, normal: Vec3) = {
     const frame = vessel.control_frame
 
     if (!vessel.parts.exists(fn(p) -> p.solar_panel.defined && p.deployable.value.deploy_state == DeployableDeployState.Extended)) // No operational solar panel
-        return (exposure: vessel.global_up.to_local(frame), normal: vessel.global_facing.to_local(frame).vector)
+        return (exposure: vessel.global_facing.to_local(frame).up_vector, normal: vessel.global_facing.to_local(frame).vector)
 
     const solarPanelParts = vessel.parts
         .filter(fn(p) -> p.solar_panel.defined)

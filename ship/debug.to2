@@ -6,6 +6,7 @@ use { Vec3 } from ksp::math
 use { ThrustSituation } from ship::constant
 use { ULTRAMARINE, GREY, CRIMSON, WHITE, BLUE, RED, GREEN, YELLOW } from ui::constant
 use { Array } from math::constant
+use { String } from ui::constant
 use { Stage } from ship::stage
 use { Ship } from ship::ship
 
@@ -16,7 +17,7 @@ pub fn part_debug(vessel: Vessel) -> Unit = {
         .sort_by(fn(p) -> p.activation_stage)
         .map(fn(p) -> CONSOLE.print_line(p.activation_stage.to_string() + " " + p.decouple_stage.to_string() + " " + p.part_name))
 
-    CONSOLE.print_line("")
+    CONSOLE.print_line(String.Empty)
     CONSOLE.print_line("--- VESSEL.STAGING.PARTS_IN_STAGE ---")
     CONSOLE.print_line("A-D-Part name------------------------")
     (0..vessel.staging.total_count)

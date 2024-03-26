@@ -9,12 +9,13 @@ use { sleep } from ksp::game
 use * from ship::debug
 use * from ui::debug
 use { test_language } from to2
+use { String } from ui::constant
 
 /// Entry Point
 pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
     // Clear the console
     CONSOLE.clear()
-    CONSOLE.print_line((0..80).reduce("", fn(strike, c) -> strike + "-"))
+    CONSOLE.print_line((0..80).reduce(String.Empty, fn(strike, c) -> strike + "-"))
     // let startProc = current_time()
     // test_language(vessel)
     // stage_debug(vessel)

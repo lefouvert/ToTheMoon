@@ -1,0 +1,178 @@
+use { AutopilotMode } from ksp::vessel
+use { RAD_TO_DEG, abs, floor, min, max, clamp, atan2_deg, sin_deg, log, round } from core::math
+use { Direction } from ksp::math
+use { current_time, yield, wait_until } from ksp::game
+
+use { Apsis, ApsisConst, ApsisModification, ApsisModificationConst } from maneuver::constant
+use { Throttle, ThrustSituation } from ship::constant
+use { Circle, Array, Sexagesimal } from math::constant
+use { Ship } from ship::ship
+use { semi_major_axis, semi_minor_axis, param_deltaV, eta_trueAnomaly, prograde_elevation, radius_true_anomaly } from body::orbit
+use { atmosphere_depth } from body::atmosphere
+use { burntime, compassFromDirection, inertia } from ship::navigation
+use { significant_digit } from math::rounding
+use { engineeringNotation } from ui::unit
+
+const MIN_BURNTIME: float = 5.0
+const ALT_TIME_RATIO: float = 136000
+
+sync fn direction_manager(ship: Ship, thrustTrueAno: float, thrustOrientation: ApsisModificationConst, error: float) -> Direction = {
+    const vessel = ship.ship
+
+    const vesselTrueAno = vessel.orbit.true_anomaly_from_vector(vessel.position) * RAD_TO_DEG
+    const thrustElevation = prograde_elevation(thrustTrueAno, vessel.orbit.semi_major_axis, semi_minor_axis(vessel.orbit.semi_major_axis, vessel.orbit.eccentricity))
+
+    const sma = semi_major_axis(vessel.main_body, ship.periapsis(), ship.apoapsis())
+    const smi = semi_minor_axis(sma, vessel.orbit.eccentricity)
+    const radiusAltTA = radius_true_anomaly(vesselTrueAno, sma , smi)
+    const y = (max(log(sma), 1) + 1) * error + 1
+    const x = radiusAltTA * sin_deg(thrustTrueAno - vesselTrueAno)
+    const elevationCorrector = atan2_deg(y * sma, x * smi)
+
+    const elevation = thrustElevation - (thrustTrueAno - vesselTrueAno) + thrustOrientation + elevationCorrector
+
+    const azimuth = compassFromDirection(vessel, ship.prograde())
+
+// ksp::console::CONSOLE.print_at(12, 50, "ThTa".pad_right(7) + " : " + thrustTrueAno.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(12, 70, "vesTa".pad_right(7) + " : " + vesselTrueAno.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(13, 50, "ThEl".pad_right(7) + " : " + thrustElevation.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(13, 70, "ThOr".pad_right(7) + " : " + thrustOrientation.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(14, 50, "az".pad_right(7) + " : " + azimuth.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(1, 70, "el".pad_right(7) + " : " + elevation.to_fixed(4).pad_left(6))
+// ksp::console::CONSOLE.print_at(2, 70, "elFlat".pad_right(7) + " : " + (thrustElevation - (thrustTrueAno - vesselTrueAno) + thrustOrientation).to_fixed(4).pad_left(6))
+// ksp::console::CONSOLE.print_at(3, 70, "elCorr".pad_right(7) + " : " + elevationCorrector.to_string().pad_left(6))
+// ksp::console::CONSOLE.print_at(5, 70, "vesTA".pad_right(7) + " : " + vesselTrueAno.to_string().pad_left(6))
+
+    return vessel.heading_direction(azimuth, elevation, 0.0) //vessel.main_body.celestial_frame
+}
+
+sync fn thrust_ratio(ship: Ship) -> float =
+    ship.thrust(ThrustSituation.CurrentAsOn)/(inertia(ship)* body::orbit::g0())
+
+sync fn eta_thrust(ship: Ship, burntime: float, etaManeuver: float) -> float =
+    etaManeuver - burntime - max(MIN_BURNTIME, inertia(ship) + thrust_ratio(ship) * ((ship.ship.altitude_sealevel + ship.ship.main_body.radius) / ALT_TIME_RATIO))
+
+sync fn controleThrottle(ship: Ship, altitude: float, burntime: float, thrustTrueAno: float, thrustDirection: Direction) -> float = {
+// sync fn controleThrottle(ship: Ship, altitude: float, eta_thrust: float, thrustDirection: Direction) -> float = {
+    const vessel = ship.ship
+
+    const etaManeuver = eta_trueAnomaly(vessel.orbit, thrustTrueAno)
+
+    const throttleTime =
+        if (etaManeuver > 0)
+            clamp(min(
+                    max((- eta_thrust(ship, burntime, etaManeuver) * burntime), Throttle.Min),
+                    (- eta_thrust(ship, burntime, etaManeuver) / inertia(ship))
+            ), Throttle.Shut, Throttle.Max)
+        else
+            Throttle.Shut
+
+// ksp::console::CONSOLE.print_at(4, 30, "inertia: " + inertia(ship).to_string() + " thrust_ratio: " + thrust_ratio(ship).to_fixed(3))
+// ksp::console::CONSOLE.print_at(5, 50, "ttSlow: " + ((- eta_thrust(ship, burntime, etaManeuver) * burntime) <= (- eta_thrust(ship, burntime, etaManeuver) / reaction_time(ship))).to_string() + "  ")
+
+    const maxAllowedThrottle = [throttleTime, ship.throttle_temperature(), ship.throttle_q(), ship.throttle_altitude(altitude)]
+        .sort()[Array.First]
+
+// ksp::console::CONSOLE.print_at(9, 50, "ttTi ttTe ttQ  ttAl ttDi")
+// ksp::console::CONSOLE.print_at(11, 50, maxAllowedThrottle.to_fixed(2))
+// ksp::console::CONSOLE.print_at(12, 50, maxAllowedThrottle.to_string())
+// ksp::console::CONSOLE.print_at(10, 50, throttleTime.to_fixed(2))
+// ksp::console::CONSOLE.print_at(10, 55, ship.throttle_temperature().to_fixed(2))
+// ksp::console::CONSOLE.print_at(10, 60, ship.throttle_q().to_fixed(2))
+// ksp::console::CONSOLE.print_at(10, 65, ship.throttle_altitude(altitude).to_fixed(2))
+// ksp::console::CONSOLE.print_at(10, 70, ship.throttle_direction(thrustDirection, 1.0, 1.0).to_fixed(2))
+
+// ksp::console::CONSOLE.print_at(16, 50, "etaTh".pad_right(7) + " : " + etaManeuver.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(16, 70, "refEta".pad_right(7) + " : " + etaManeuver.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(17, 50, "bt".pad_right(7) + " : " + burntime.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(17, 70, "etaBt".pad_right(7) + " : " + (etaManeuver - burntime - MIN_BURNTIME).to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(18, 70, "TttT".pad_right(7) + " : " + throttleTime.to_fixed(2).pad_left(6))
+
+    const errorModeratorThrottle = ship.throttle_direction(thrustDirection, 1.0, 1.0)
+
+    return maxAllowedThrottle * errorModeratorThrottle
+}
+
+pub fn set_apsis_fine(ship: Ship, apsis: ApsisConst, altitude:float) -> Result<Unit, string> = {
+    const vessel = ship.ship
+    const body = vessel.main_body
+    const accuracy = min(6, floor(log(altitude))).to_int
+
+    const initialArgOfPeriapsis = vessel.orbit.argument_of_periapsis
+
+    const selector = fn(a: fn() -> float, p: fn() -> float) -> {
+        if(apsis == Apsis.Periapsis)
+            if(abs(initialArgOfPeriapsis - vessel.orbit.argument_of_periapsis) < Circle.Quarter) p else a
+        else
+            if(abs(initialArgOfPeriapsis - vessel.orbit.argument_of_periapsis) < Circle.Quarter) a else p
+    }
+
+    const toSetApsis = selector(ship.apoapsis, ship.periapsis)
+    const toKeepApsis = selector(ship.periapsis, ship.apoapsis)
+    const staticApsis = toKeepApsis()
+
+    const thrustTrueAno = selector(fn() -> {Circle.None}, fn() -> {Circle.Semi})
+    const thrustOrientation = if(toSetApsis() < altitude) ApsisModification.Raise else ApsisModification.Decrease
+
+    const deltaVLeft = fn() -> param_deltaV(vessel.orbit, semi_major_axis(body, toKeepApsis(), altitude), vessel.orbit.inclination, toKeepApsis(), toKeepApsis())
+
+    const done = fn() -> {
+        if(round(significant_digit(toKeepApsis(), accuracy)) == round(significant_digit(toSetApsis(), accuracy))) return true
+        if(thrustOrientation == ApsisModification.Raise) (round(significant_digit(toSetApsis(), accuracy)) >= round(significant_digit(altitude, accuracy))) else (round(significant_digit(toSetApsis(), accuracy)) <= round(significant_digit(altitude, accuracy)))
+    }
+
+    ship.set_throttle_altitude(altitude, MIN_BURNTIME / 3)
+    const tmanager = vessel.manage_throttle(fn(deltaT) -> controleThrottle(
+        ship,
+        toSetApsis(),
+        burntime(ship, deltaVLeft()),
+        thrustTrueAno(),
+        direction_manager(ship, thrustTrueAno(), thrustOrientation, staticApsis - toKeepApsis())
+        // direction_manager(ship, thrustTrueAno(), thrustOrientation, toSetApsis())
+    ))
+
+    while(!done()) {
+        yield()
+        ship.check_staging()
+        ship.check_jettison()
+        ship.check_deploy() // have to slice between main body and statelites
+        ship.check_science()
+
+
+// ksp::console::CONSOLE.print_at(1, 50, "toKeep: " + round(significant_digit(toKeepApsis(), accuracy)).to_string() + "  ")
+// ksp::console::CONSOLE.print_at(2, 50, "toSet : " + round(significant_digit(toSetApsis(), accuracy)).to_string() + "  ")
+// ksp::console::CONSOLE.print_at(3, 50, "toAim : " + round(significant_digit(altitude, accuracy)).to_string() + "  ")
+// ksp::console::CONSOLE.print_at(3, 70, "acc : " + accuracy.to_string() + "  ")
+
+        if (ship.deltaV() < 1)
+            return Err("Not enought fuel to reach a " + engineeringNotation(altitude) + "m. " + (if(apsis == Apsis.Periapsis) "periapsis" else "apoapsis") + " above " + body.name)
+
+// ksp::console::CONSOLE.print_at(18, 50, "dvleft".pad_right(7) + " : " + deltaVLeft().to_fixed(2).pad_left(6))
+// body::debug::orbit_debug(vessel, vessel.orbit)
+
+// ksp::console::CONSOLE.print_at(20, 50, "tsa".pad_right(7) + " : " + toSetApsis().to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(20, 70, "tka".pad_right(7) + " : " + toKeepApsis().to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(21, 50, "ori".pad_right(7) + " : " + thrustOrientation.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(21, 70, "done".pad_right(7) + " : " + done().to_string().pad_left(6))
+// ksp::console::CONSOLE.print_at(28, 50, "sa".pad_right(7) + " : " + staticApsis.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(28, 70, "aim".pad_right(7) + " : " + altitude.to_fixed(2).pad_left(6))
+
+        const etaManeuver = eta_thrust(ship, burntime(ship, deltaVLeft()), eta_trueAnomaly(vessel.orbit, thrustTrueAno()))
+
+        if(ship.altitude() < atmosphere_depth(vessel.main_body) && etaManeuver > MIN_BURNTIME)
+            ship.point_to_onthefly(vessel.surface_velocity)
+        else
+            ship.point_to_onthefly(direction_manager(ship, thrustTrueAno(), thrustOrientation, staticApsis - toKeepApsis()).vector)
+
+        if(etaManeuver > Sexagesimal && (!done())) {
+            if(ship.warp_to(current_time() + etaManeuver - Sexagesimal))
+                tmanager.resume()
+        }
+    }
+
+    vessel.set_throttle(0.0)
+    wait_until(fn() -> (ship.thrust(ThrustSituation.Current) == 0.0))
+    vessel.release_control()
+    // tmanager.release()
+    ship.print_status()
+}

@@ -2,6 +2,7 @@ use { VesselSituation } from ksp::vessel
 use { wait_until, sleep } from ksp::game
 
 use { StagingCase } from ship::constant
+use { String } from ui::constant
 use { Ship } from ship::ship
 use { atmosphere_depth } from body::atmosphere
 
@@ -10,14 +11,14 @@ pub fn stage(ship: Ship, trigger: (need: bool, reason: string)[], verbose: bool)
     const oldStage = vessel.staging.current
     const reason = trigger
         .filter(fn(c) -> c.need)
-        .reduce("", fn(agg, c) -> agg + (if(agg.length > 0) "|" else "") + c.reason)
+        .reduce(String.Empty, fn(agg, c) -> agg + (if(agg.length > 0) "|" else String.Empty) + c.reason)
     if(verbose) ship.print("(" + reason + ") -> Preparing to stage...")
 
     if(atmosphere_depth(vessel.main_body) > vessel.altitude_sealevel
     && vessel.situation != VesselSituation.Landed
     && vessel.situation != VesselSituation.Splashed
     && vessel.situation != VesselSituation.PreLaunch)
-        ship.align(vessel.surface_velocity, 5)
+        ship.align(vessel.surface_velocity, 5) //vessel.main_body.body_frame
 
     wait_until(fn() -> vessel.staging.ready)
     vessel.staging.next()

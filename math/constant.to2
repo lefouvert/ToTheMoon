@@ -1,3 +1,4 @@
+use { String } from ui::constant
 
 pub const prefixUnit: (scale: int, symbol: string)[] = [
     (scale:10, symbol: "Q"),
@@ -10,7 +11,7 @@ pub const prefixUnit: (scale: int, symbol: string)[] = [
     (scale:3, symbol: "G"),
     (scale:2, symbol: "M"),
     (scale:1, symbol: "k"),
-    (scale:0, symbol: ""),
+    (scale:0, symbol: String.Empty),
     (scale:-1, symbol: "m"),
     (scale:-2, symbol: "µ"),
     (scale:-3, symbol: "n"),
@@ -52,3 +53,5 @@ pub const Sign: (Positive: SignConst, Negative: SignConst) = (
 )
 
 pub const VacuumLightSpeed: float = 299792458.0
+
+//pub sync fn identity<U>(param: &U) -> &U = param

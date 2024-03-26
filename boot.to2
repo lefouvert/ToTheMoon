@@ -7,12 +7,13 @@ use { Vessel } from ksp::vessel
 
 use { Ship } from ship::ship
 use { Array } from math::constant
+use { String } from ui::constant
 
 // const ship: Cell<Option<Ship>> = Cell(None())
 
 /// Entry Point
 pub fn main_flight(vessel: Vessel, missionFolder : string = "mission") -> Result<Unit, string> = {
-    const missionRoot = missionFolder + (if(missionFolder.length > 0) "::" else "")
+    const missionRoot = missionFolder + (if(missionFolder.length > 0) "::" else String.Empty)
     const vesselName = (missionRoot + vessel.name.replace(" ", "_").replace("-", "_")).to_lower()
     const foundProcesses = MAINFRAME.available_processes
         .filter(fn(mission) -> vesselName.contains(mission.name.to_lower()))
@@ -34,7 +35,7 @@ pub fn main_flight(vessel: Vessel, missionFolder : string = "mission") -> Result
     CONSOLE_WINDOW.position = vec2(-screen_size().x / 2, screen_size().y / 2) + vec2(70, 10) // Debug config
     CONSOLE_WINDOW.size = vec2(720, 1000) // Debug config
 
-    CONSOLE.print_line((0..80).reduce("", fn(strike, c) -> strike + "-"))
+    CONSOLE.print_line((0..80).reduce(String.Empty, fn(strike, c) -> strike + "-"))
     CONSOLE.print_line("-------- Boot sequence --------")
     CONSOLE.print_line("searching a mission for '" + vessel.name + "'")
     CONSOLE.print_line("in " + (if(missionFolder.length > 0) ("'" + missionFolder + "'") else "root") + " folder")

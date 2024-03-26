@@ -2,6 +2,8 @@ use { CONSOLE } from ksp::console
 use { active_object_assembly_builder, ObjectAssemblyPart } from ksp::oab
 use { Body, Orbit, find_body } from ksp::orbit
 
+use { String } from ui::constant
+
 
 pub const OneAtmPressure: float = 101.325 //kpa
 
@@ -25,7 +27,7 @@ pub fn main_editor() -> Result<Unit, string> = {
 //     CONSOLE.print_line("Alt :" + (alt * 1000).to_string() + " pressure: " + body.atmosphere_pressure_kpa(alt * 1000).to_string())
 // return Ok({})
 
-    CONSOLE.print_line((0..80).reduce("", fn(strike, c) -> strike + "-"))
+    CONSOLE.print_line((0..80).reduce(String.Empty, fn(strike, c) -> strike + "-"))
 
 
     const builder = active_object_assembly_builder()?

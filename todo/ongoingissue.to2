@@ -1,1 +1,6 @@
-// stockos2 not able to park (rotate af)
+// stockos2 (Grappe Launcher) not able to park (rotate af)
+
+
+// const framesAnalysis = (frames: [self.ship.control_frame, self.ship.body_frame, self.ship.horizon_frame, self.ship.celestial_frame, self.ship.main_body.body_frame, self.ship.main_body.celestial_frame, self.ship.orbit.reference_frame, ksp::orbit::galactic_origin()], names: ["vessel.control_frame", "vessel.body_frame", "vessel.horizon_frame","vessel.celestial_frame", "vessel.main_body.body_frame", "vessel.main_body.celestial_frame", "vessel.orbit.reference_frame", "galactic_origin"])
+// for(i in (0..framesAnalysis.frames.length))
+//     ksp::console::CONSOLE.print_line("before " + framesAnalysis.names[i].pad_left(35) + " angle : " + self.ship.global_facing.to_local(framesAnalysis.frames[i]).vector.angle_to(pointToLook).to_string())

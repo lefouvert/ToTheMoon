@@ -1,10 +1,10 @@
 
 pub type AscentProfileConst = int
 
-pub const AscentProfile: (Logarithmic: AscentProfileConst, Trigonometric: AscentProfileConst) = (
-    Logarithmic: 2**0,
-    Trigonometric: 2**1
-)
+// pub const AscentProfile: (Logarithmic: AscentProfileConst, Trigonometric: AscentProfileConst) = (
+//     Logarithmic: 2**0,
+//     Trigonometric: 2**1
+// )
 
 pub type ApsisConst = int
 

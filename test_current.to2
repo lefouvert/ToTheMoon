@@ -2,7 +2,8 @@ use { Vessel, VesselSituation, DeployableDeployState } from ksp::vessel
 use { sleep } from ksp::game
 // use { CONSOLE } from ksp::console
 
-use { AscentProfile } from maneuver::constant
+// use { AscentProfile } from maneuver::constant
+use { Array } from math::constant
 use { Ship } from ship::ship
 use { sanitityCheck, takeOff } from maneuver::takeof
 use { ascent } from maneuver::ascent
@@ -30,6 +31,41 @@ result
 /// Entry Point
 pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
     ksp::console::CONSOLE.clear()
+
+ksp::console::CONSOLE.print_line("global_facing: (control)" + vessel.global_facing.to_string(vessel.control_frame) + " (body)" + vessel.global_facing.to_string(vessel.body_frame)+ ": (body Cel)" + vessel.global_facing.to_string(vessel.main_body.celestial_frame))
+for(c in vessel.command_modules)
+    ksp::console::CONSOLE.print_line(c.part_name + ": (control)" + c.part.global_rotation.to_string(vessel.control_frame) + " (body)" + c.part.global_rotation.to_string(vessel.body_frame)+ ": (body Cel)" + c.part.global_rotation.to_string(vessel.main_body.celestial_frame) + " " + c.part.global_position.to_local(vessel.control_frame).magnitude.to_string() + " is controling: " + (math::rounding::round_at(c.part.global_position.to_local(vessel.control_frame).magnitude, 20) == 0).to_string())//math::vector::almost_equal(c.part.global_position.to_local(vessel.control_frame), ksp::math::vec3(0.0, 0.0, 0.0), 20).to_string())
+
+const commod = vessel.command_modules.filter(fn(m) -> math::rounding::round_at(m.part.global_position.to_local(vessel.control_frame).magnitude, 5) == 0)[Array.First]
+const rotmod = commod.part.global_rotation.to_local(vessel.control_frame) * commod.part.global_rotation.to_local(vessel.body_frame).inverse
+const trololorot = commod.part.global_rotation.to_local(vessel.control_frame).to_global(vessel.body_frame).to_local(vessel.control_frame)
+// const rotmod = commod.part.global_rotation.to_local(vessel.control_frame) * commod.part.global_rotation.to_local(vessel.body_frame)
+ksp::console::CONSOLE.print_line("rotmodbody " + rotmod.to_string())
+ksp::console::CONSOLE.print_line("trololorot " + trololorot.to_string())
+ksp::console::CONSOLE.print_line("trololorot inv " + trololorot.inverse.to_string())
+ksp::console::CONSOLE.print_line("-trololorot " + (ksp::math::euler(0,0,0)-trololorot).to_string())
+ksp::console::CONSOLE.print_line("facing (vessel control) " + (vessel.global_facing.to_local(vessel.control_frame) * rotmod).to_string() + " facing (vessel body)" + (vessel.global_facing.to_local(vessel.body_frame) * rotmod).to_string())
+ksp::console::CONSOLE.print_line("I facing (vessel control) " + (vessel.global_facing.to_local(vessel.control_frame) * rotmod.inverse).to_string() + " facing (vessel body)" + (vessel.global_facing.to_local(vessel.body_frame) * rotmod.inverse).to_string())
+ksp::console::CONSOLE.print_line("facing (C -> body Cel) " + ((vessel.global_facing.to_local(vessel.control_frame) * rotmod).to_global(vessel.control_frame).to_local(vessel.main_body.celestial_frame)).to_string())
+ksp::console::CONSOLE.print_line("facing (B -> body Cel) " + ((vessel.global_facing.to_local(vessel.body_frame) * rotmod).to_global(vessel.body_frame).to_local(vessel.main_body.celestial_frame)).to_string())
+ksp::console::CONSOLE.print_line("I facing (C -> body Cel) " + ((vessel.global_facing.to_local(vessel.control_frame) * rotmod.inverse).to_global(vessel.control_frame).to_local(vessel.main_body.celestial_frame)).to_string())
+ksp::console::CONSOLE.print_line("I facing (B -> body Cel) " + ((vessel.global_facing.to_local(vessel.body_frame) * rotmod.inverse).to_global(vessel.body_frame).to_local(vessel.main_body.celestial_frame)).to_string())
+ksp::console::CONSOLE.print_line("J facing (B -> body Cel) " + ((vessel.global_facing.to_local(vessel.body_frame) * rotmod).to_global(vessel.control_frame).to_local(vessel.main_body.celestial_frame)).to_string())
+ksp::console::CONSOLE.print_line("--------")
+ksp::console::CONSOLE.print_line("Dumbway facing (BC -> body Cel) " + ((vessel.global_facing.to_local(vessel.body_frame)).to_global(vessel.control_frame).to_local(vessel.main_body.celestial_frame)).to_string())
+ksp::console::CONSOLE.print_line("Dumbway facing (CB -> body Cel) " + ((vessel.global_facing.to_local(vessel.control_frame)).to_global(vessel.body_frame).to_local(vessel.main_body.celestial_frame)).to_string())
+
+const testvesselrot = ksp::math::euler(90, 0, 0).inverse
+const forward = testvesselrot.vector
+const starboard = testvesselrot.right_vector
+const up = testvesselrot.up_vector
+ksp::console::CONSOLE.print_line("Dir " + testvesselrot.to_string() + " forward: " + forward.to_string() + " starboard: " + starboard.to_string() + " up: " + up.to_string())
+
+
+
+
+return Ok({})
+
 
 test(2984)
 
@@ -242,7 +278,8 @@ for(m in todeploy.reverse()) {
     }
     // ascent(ship, 80000, 0, AscentProfile.Logarithmic)
     // ascent(ship, fast_orbit(vessel), AscentProfile.Trigonometric)
-    if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Trigonometric)
+    // if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Trigonometric)
+    if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit)
     // if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Logarithmic)
 
     return Ok({})

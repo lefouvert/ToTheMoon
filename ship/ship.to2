@@ -1,33 +1,49 @@
-use { Vessel, VesselSituation, AutopilotMode, Part, DeployableDeployState } from ksp::vessel
-use { current_time, wait_until, yield, sleep } from ksp::game
+use { Vessel, VesselSituation, AutopilotMode, Part, DeployableDeployState, ModuleCommand } from ksp::vessel
+use { current_time, wait_until, wait_while, yield, sleep } from ksp::game
 // use { ResourceData } from ksp::resource
 use { Direction, Vec3, vec3, TransformFrame, look_dir_up } from ksp::math
 use { min, max, clamp, abs, MIN_FLOAT } from core::math
 use { ExperimentState, Experiment, ResearchLocation, ResearchReport, ScienceSituation } from ksp::science
+use { is_physics_time_warp, is_warping, warp_to} from ksp::game::warp
 use { CONSOLE } from ksp::console
 
+use { MovingAverage, moving_average } from ksp::control
+
+// use { control_steering } from ship::steering
 use { control_steering } from std::control::steering
 
 use { ThrustSituation, ThrustSituationConst, MassState, MassStateConst, Throttle, Resource } from ship::constant
 use { InsignificantAtmoshpere } from body::constant
-use { Circle, Array } from math::constant
+use { Circle, Array, Sexagesimal } from math::constant
+use { String } from ui::constant
 use { Stage } from ship::stage
-use { stage } from ship::action::stage
-use { run_science, emmit_science } from ship::action::science
+use { stage } from ship::actuator::stage
+use { run_science, emmit_science } from ship::actuator::science
 use { ideal_exposure } from ship::aggregation::solarpanel
 use { atmosphere_depth } from body::atmosphere
+use { eta_trueAnomaly } from body::orbit
 use { deviation } from ship::navigation
 use { early_weight_convex } from math::trigonometry
 use { round_at } from math::rounding
+use { almost_equal } from math::vector
 use { Derivative } from math::feedback
 use { hms, engineeringNotation } from ui::unit
 
+
+// pub struct SmoothStop(target: float, timeToStop: float) {
+//     differential: Derivative = Derivative(0.01)
+//     lastThrottle: float = Throttle.Max
+//     timeToStop: float = timeToStop
+//     target: float = target
+// }
+
 pub struct SmoothStop(target: float, timeToStop: float) {
-    differential: Derivative = Derivative(0.01)
+    differential: MovingAverage = moving_average(50)
     lastThrottle: float = Throttle.Max
     timeToStop: float = timeToStop
     target: float = target
 }
+
 
 pub struct Ship(vessel: Vessel) {
     ship: Vessel = vessel
@@ -35,6 +51,8 @@ pub struct Ship(vessel: Vessel) {
     stages: Stage[] = (0..vessel.staging.count)
         .map(fn(s) -> Stage(vessel, s))
     launch_timeStamp: float = -current_time() // negative if prelaunch. positive at first ignition.
+    //main_body: Parts[] // TODO
+    //payloads: Parts[][] // TODO
     //shorteners
     transform_frame : TransformFrame = vessel.control_frame
     prograde: fn() -> Direction = fn() -> vessel.orbit.prograde(current_time()).to_direction()
@@ -58,10 +76,9 @@ impl Ship {
 // ///////////////////////// TODO
 
 // trash useless (fairing, empty tanks or stages) / check empty ?
-// warpwait
 // dock
 // suicideburn
-// get/change control module ?
+// change control module ?
 
 //////////////////////////////// ongoing
     sync fn throttle_direction(self, targetDir: Direction, deadzone: float = 0, tolerance: float = 1.0) -> float = {
@@ -96,18 +113,49 @@ impl Ship {
         clamp(slope.ratio * (self.ship.dynamic_pressure_kpa / MAX_Q) + slope.yIntercept, Throttle.Shut, Throttle.Max)
     }
 
-    sync fn set_throttle_altitude(self, targetAltitude:float, timeToStop:float = 5) -> Unit =
-        self.smoothStop = SmoothStop(targetAltitude, timeToStop)
+    // sync fn set_throttle_altitude(self, targetAltitude:float, timeToStop:float = 5) -> Unit =
+    //     self.smoothStop = SmoothStop(targetAltitude, timeToStop)
+
+    // sync fn throttle_altitude(self, measure:float) -> float = { // TODO check why sometime it stop early
+    //     if(abs(self.smoothStop.differential.lastResult) < MIN_FLOAT)
+    //         return self.smoothStop.lastThrottle
+
+    //     const timespan = clamp((self.smoothStop.target - measure) * self.smoothStop.timeToStop / (abs(self.smoothStop.differential.lastResult) * 100), 0.0, 1.0)
+    //     if(current_time() - self.smoothStop.differential.lastTime < timespan)
+    //         return self.smoothStop.lastThrottle
+
+    //     const dMByDT = self.smoothStop.differential.compute(measure)
+    //     if(abs(dMByDT) < MIN_FLOAT)
+    //         return self.smoothStop.lastThrottle // TODO
+
+    //     const commun_direction = self.ship.facing.vector.normalized.dot(self.prograde().vector.normalized)
+    //     const deltaDirection =
+    //         if(self.smoothStop.target < measure)
+    //             (abs(dMByDT) * self.smoothStop.timeToStop) / commun_direction
+    //         else
+    //             commun_direction / (abs(dMByDT) * self.smoothStop.timeToStop)
+
+    //     self.smoothStop.lastThrottle = clamp((self.smoothStop.target - measure) * deltaDirection, Throttle.Shut, min(self.smoothStop.lastThrottle + 0.01, Throttle.Max))
+    //     self.smoothStop.lastThrottle
+    // }
+
+    sync fn set_throttle_altitude(self, targetAltitude:float, timeToStop:float = 5) -> Unit ={
+        self.smoothStop.differential.reset()
+        self.smoothStop.target = targetAltitude
+        self.smoothStop.timeToStop = timeToStop
+        self.smoothStop.lastThrottle = Throttle.Max
+    }
 
     sync fn throttle_altitude(self, measure:float) -> float = { // TODO check why sometime it stop early
-        if(abs(self.smoothStop.differential.lastResult) < MIN_FLOAT)
-            return self.smoothStop.lastThrottle
+        // if(abs(self.smoothStop.differential.lastResult) < MIN_FLOAT)
+        //     return self.smoothStop.lastThrottle
 
-        const timespan = clamp((self.smoothStop.target - measure) * self.smoothStop.timeToStop / (abs(self.smoothStop.differential.lastResult) * 100), 0.0, 1.0)
-        if(current_time() - self.smoothStop.differential.lastTime < timespan)
-            return self.smoothStop.lastThrottle
+        // const timespan = clamp((self.smoothStop.target - measure) * self.smoothStop.timeToStop / (abs(self.smoothStop.differential.lastResult) * 100), 0.0, 1.0)
+        // if(current_time() - self.smoothStop.differential.last_sample_time < timespan)
+        //     return self.smoothStop.lastThrottle
 
-        const dMByDT = self.smoothStop.differential.compute(measure)
+        self.smoothStop.differential.update(current_time(), measure)
+        const dMByDT = self.smoothStop.differential.mean_diff
         if(abs(dMByDT) < MIN_FLOAT)
             return self.smoothStop.lastThrottle // TODO
 
@@ -128,7 +176,12 @@ impl Ship {
         return true
     }
 
-    fn point_to_onthefly(self, pointToLook: Vec3) -> Vec3 = {
+    fn current_command_module(self) -> Option<ModuleCommand> = {
+        if (self.ship.command_modules.exists(fn(m) -> round_at(m.part.global_position.to_local(self.ship.control_frame).magnitude, 5) == 0))
+            self.ship.command_modules.filter(fn(m) -> round_at(m.part.global_position.to_local(self.ship.control_frame).magnitude, 5) == 0)[Array.First]
+    }
+
+    fn point_to_onthefly(self, pointToLook: Vec3) -> Vec3 = {  //seems to expect vessel.main_body.celestial_frame
         const vessel = self.ship
         // Enable SAS
         if(vessel.autopilot.enabled != true || vessel.autopilot.mode != AutopilotMode.Autopilot) {
@@ -138,19 +191,14 @@ impl Ship {
         vessel.autopilot.target_orientation = pointToLook
     }
 
-    // fn align(self, direction : Direction, delta: float = 1.0) -> bool = { // in celectial frame
-    fn align(self, pointToLook : Vec3, delta: float = 1.0) -> bool = { // in celectial frame
+    fn align(self, pointToLook : Vec3, delta: float = 1.0) -> bool = { // vessel.main_body.celestial_frame ?
         if(!self.is_maneuverable())
             return false
 
         self.point_to_onthefly(pointToLook)
-        // // Enable SAS
-        // self.ship.autopilot.enabled = true
-        // self.ship.autopilot.mode = AutopilotMode.Autopilot
-        // self.ship.autopilot.target_orientation = pointToLook
 
         // Wait for alignment
-        while(self.ship.facing.vector.angle_to(pointToLook) > delta) yield()
+        while(self.ship.global_facing.to_local(self.ship.main_body.celestial_frame).vector.angle_to(pointToLook) > delta) yield()
         while(self.ship.angular_momentum.magnitude > delta) yield()
 
         self.ship.autopilot.mode = AutopilotMode.StabilityAssist
@@ -167,8 +215,8 @@ impl Ship {
 
         vessel.autopilot.enabled = true
         vessel.autopilot.mode = AutopilotMode.StabilityAssist
-        wait_until(fn() -> round_at(vessel.angular_velocity.magnitude, accuracy) == 0)
-ksp::console::CONSOLE.print_line("wait stop moving")
+        wait_until(fn() -> round_at(vessel.angular_velocity.magnitude, 2) == 0)
+// ksp::console::CONSOLE.print_line("wait stop moving")
         let referenceOrbit = vessel.orbit
         while(referenceOrbit.reference_body.parent_body.defined)
             referenceOrbit = referenceOrbit.reference_body.orbit
@@ -176,27 +224,66 @@ ksp::console::CONSOLE.print_line("wait stop moving")
         const starExposure = (exposure: referenceOrbit.reference_body.global_position.to_local(staticFrame), normal: referenceOrbit.orbit_normal)
         const vesselExposure = ideal_exposure(vessel)
 ship::debug::park_debug(vessel, starExposure, vesselExposure)
+
         const starDir = look_dir_up(starExposure.exposure.normalized, starExposure.normal.normalized)
-        const vesselDir = look_dir_up(vesselExposure.exposure.to_global(vessel.control_frame).to_local(staticFrame).normalized, vesselExposure.normal.to_global(vessel.control_frame).to_local(staticFrame).normalized)
-ksp::console::CONSOLE.print_line((starDir * vesselDir.inverse * vessel.global_facing.to_local(staticFrame)).to_string())
-        const steering = control_steering(vessel)
+        const vesselDir = look_dir_up(vesselExposure.exposure.normalized, vesselExposure.normal.normalized).to_global(vessel.control_frame).to_local(staticFrame)
         const rotation = starDir * vesselDir.inverse * vessel.global_facing.to_local(staticFrame)
-        // const rotationE = ksp::math::euler(core::math::clamp_degrees180(rotation.euler.x), core::math::clamp_degrees180(rotation.euler.y), core::math::clamp_degrees180(rotation.euler.z))
-        // steering.set_direction(rotationE)
+
+        const steering = control_steering(vessel)
         steering.set_direction(rotation)
-ksp::console::CONSOLE.print_line("wait aligned and stop moving: " + round_at(vesselExposure.exposure.to_global(vessel.control_frame).normalized * starExposure.exposure.to_global(staticFrame).normalized, accuracy).to_string() + "|" + round_at(vesselExposure.normal.to_global(vessel.control_frame).normalized * starExposure.normal.to_global(staticFrame).normalized, accuracy).to_string())
+
+        // vessel.autopilot.enabled = true
+        // vessel.autopilot.mode = AutopilotMode.Autopilot
+        // vessel.autopilot.lock_direction = rotation
+        // vessel.autopilot.target_orientation = rotation.vector
+        // vessel.autopilot.lock_direction = ksp::math::euler(90, 0, 90)
+
         wait_until(fn() ->
-            round_at(vesselExposure.exposure.to_global(vessel.control_frame).normalized * starExposure.exposure.to_global(staticFrame).normalized, accuracy) == 1
-            && round_at(vesselExposure.normal.to_global(vessel.control_frame).normalized * starExposure.normal.to_global(staticFrame).normalized, accuracy) == 1
+            almost_equal(rotation.vector, vessel.global_facing.to_local(staticFrame).vector, accuracy)
             && round_at(vessel.angular_velocity.magnitude, accuracy) == 0
         )
-        steering.release()
         vessel.autopilot.mode = AutopilotMode.StabilityAssist
+        steering.release()
 
         if(verbose)
             self.print("Stationed")
-
+// sleep(30)
+ksp::debug::DEBUG.clear_markers()
         rotation
+    }
+
+    fn warp_to(self, time: float, verbose: bool = true) -> bool = {
+        const vessel = self.ship
+        if(eta_trueAnomaly(vessel.orbit, Circle.None) < eta_trueAnomaly(vessel.orbit, Circle.Semi) && vessel.orbit.periapsis < atmosphere_depth(vessel.main_body)
+        || is_physics_time_warp()
+        || is_warping()
+        || time - current_time() < Sexagesimal)
+            return false
+
+        vessel.release_control()
+        vessel.autopilot.mode = AutopilotMode.StabilityAssist
+
+        const parkTime = current_time()
+        if(time - current_time() > 5 * Sexagesimal)
+            self.park()
+        const ajustedTime = time - (current_time() - parkTime)
+
+        if(verbose)
+            self.print("Warping")
+
+        warp_to(time)
+
+        wait_while(is_warping)
+
+        if(verbose) {
+            const timestamp = hms(current_time() - parkTime)
+            const timeString = (if(timestamp.hour > 0) timestamp.hour.to_string() + "h " else String.Empty)
+                + (if(timestamp.minute > 0 || timestamp.hour > 0) timestamp.minute.to_string().pad_left("00".length).replace(" ", "0") else String.Empty) + "m "
+                + timestamp.second.to_fixed(2).pad_left("00.00".length).replace(" ", "0") + "s"
+            self.print(timeString + " warped")
+        }
+
+        true
     }
 
     fn dock(self, vessel: Vessel) -> bool = {
@@ -455,7 +542,7 @@ ksp::console::CONSOLE.print_line("wait aligned and stop moving: " + round_at(ves
         + ": "
         if (multiline) {
             const tab = (0..head.length)
-                .reduce("", fn(t, c) -> t + " ")
+                .reduce(String.Empty, fn(t, c) -> t + " ")
             CONSOLE.print_line(tab + message)
         }
         else

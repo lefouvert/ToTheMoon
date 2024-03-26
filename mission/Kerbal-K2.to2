@@ -1,10 +1,11 @@
 use { Vessel, VesselSituation } from ksp::vessel
 
-use { AscentProfile, Apsis } from maneuver::constant
+// use { AscentProfile, Apsis } from maneuver::constant
+use { Apsis } from maneuver::constant
 use { Ship } from ship::ship
 use { sanitityCheck, takeOff } from maneuver::takeof
 use { ascent } from maneuver::ascent
-use { circularize } from maneuver::circularize
+use { circularize } from maneuver::conjunct::circularize
 use { fast_orbit, create_orbit, semi_major_axis } from body::orbit
 use { expected_LAN } from ship::navigation
 use { clear_altitude } from body::atmosphere
@@ -25,7 +26,8 @@ pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
     }
 
     // if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Trigonometric)
-    if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Logarithmic)
+    // if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit, AscentProfile.Logarithmic)
+    if (vessel.situation == VesselSituation.Flying) ascent(ship, KerbinLowOrbit)
 
     circularize(ship)
     ship.park()

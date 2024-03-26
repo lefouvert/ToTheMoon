@@ -4,6 +4,7 @@ use { min } from core::math
 use { CONSOLE } from ksp::console
 
 use { ThrustSituation, Twr, Throttle } from ship::constant
+use { String } from ui::constant
 use { Stage } from ship::stage
 use { Ship } from ship::ship
 use { fast_orbit, orbit_deltaV } from body::orbit
@@ -11,14 +12,14 @@ use { ask } from ui::yndialog
 
 fn checkSystem(condition: bool, systemName: string) -> bool = {
     const checkResult = if (condition) " : Ok." else " : No go."
-    const tab = (systemName.length..23).reduce("", fn(agg, c) -> agg + ".")
+    const tab = (systemName.length..23).reduce(String.Empty, fn(agg, c) -> agg + ".")
     CONSOLE.print_line("Checking " + systemName + " ..." + tab + checkResult)
     return condition
 }
 
-fn errorMessage(message: string, faultyResult: string = "", voidable: bool = false) -> bool = {
+fn errorMessage(message: string, faultyResult: string = String.Empty, voidable: bool = false) -> bool = {
     const header = if(voidable) "WARNING : " else "ERROR : "
-    const strike = (0..(message.length + header.length)).reduce("", fn(agg, c) -> agg + "-")
+    const strike = (0..(message.length + header.length)).reduce(String.Empty, fn(agg, c) -> agg + "-")
     CONSOLE.print_line(strike)
     CONSOLE.print_line(header + message)
     CONSOLE.print_line(strike)

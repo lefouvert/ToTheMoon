@@ -1,12 +1,14 @@
 use { Vessel } from ksp::vessel
 use { Orbit, GeoCoordinates } from ksp::orbit
+use { current_time } from ksp::game
 use { GlobalVector, Direction } from ksp::math
-use { max, min, clamp, clamp_degrees180, clamp_degrees360, sin_deg, cos_deg, asin_deg, acos_deg, atan2_deg, log, abs, sqrt } from core::math
+use { max, min, clamp, clamp_degrees180, clamp_degrees360, sin_deg, cos_deg, asin_deg, acos_deg, atan2_deg, log, abs, sqrt, round } from core::math
 
 use { Circle, Sign, VacuumLightSpeed } from math::constant
-use { AscentProfile, AscentProfileConst } from maneuver::constant
+// use { AscentProfile, AscentProfileConst } from maneuver::constant
+use { MinAltitude } from body::constant
 use { Ship } from ship::ship
-
+use { clear_altitude } from body::atmosphere
 
 // TODO dvToMass ?
 
@@ -14,12 +16,26 @@ pub sync fn deviation (aimDir: Direction, actualDir : Direction) -> float = {
     return aimDir.vector.angle_to(actualDir.vector)
 } // TODO YAGNI
 
-pub sync fn ascent_angle(currentApoapsis: float, aimedAlt:float, profile: AscentProfileConst) -> float = {
-    if(profile == AscentProfile.Trigonometric)
-        return acos_deg(clamp((currentApoapsis/ aimedAlt) - 1, -1, 1)) - Circle.Quarter
-    Circle.Quarter - max(0.0, log(currentApoapsis * (Circle.Quarter / aimedAlt) + 1)) * (Circle.Quarter / log(Circle.Quarter))
-    // TODO gravity turn (just aim for prograde)
-    // TODO (elsewhere) auto-toggle between modes : low orbit : trigo, high orbit log, both switch on gravity when high enough (aka when computed prograde elevation cross orbital prograde elevation)
+// pub sync fn ascent_angle(currentApoapsis: float, aimedAlt:float, profile: AscentProfileConst) -> float = {
+//     if(profile == AscentProfile.Trigonometric)
+//         return acos_deg(clamp((currentApoapsis/ aimedAlt) - 1, -1, 1)) - Circle.Quarter
+//     Circle.Quarter - max(0.0, log(currentApoapsis * (Circle.Quarter / aimedAlt) + 1)) * (Circle.Quarter / log(Circle.Quarter))
+//     // TODO gravity turn (just aim for prograde)
+//     // TODO (elsewhere) auto-toggle between modes : low orbit : trigo, high orbit log, both switch on gravity when high enough (aka when computed prograde elevation cross orbital prograde elevation)
+// }
+
+pub sync fn ascent_angle(vessel: Vessel) -> float = {
+    const gravity = round(current_prograde_pitch(vessel))
+    const trigonometric = acos_deg(clamp(((vessel.orbit.apoapsis|(MinAltitude/2)) / clear_altitude(vessel.main_body)) - 1, -1, 1)) - Circle.Quarter
+    const logaritmic = Circle.Quarter - max(0.0, log((vessel.orbit.apoapsis|(MinAltitude/2)) * (Circle.Quarter / clear_altitude(vessel.main_body)) + 1)) * (Circle.Quarter / log(Circle.Quarter))
+// ksp::console::CONSOLE.print_at(11, 50, (vessel.orbit.apoapsis|(MinAltitude/2)).to_string() + " / " + clear_altitude(vessel.main_body).to_string())
+// ksp::console::CONSOLE.print_at(13, 70, "gra".pad_right(3) + " : " + gravity.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(14, 70, "tri".pad_right(3) + " : " + trigonometric.to_fixed(2).pad_left(6))
+// ksp::console::CONSOLE.print_at(15, 70, "log".pad_right(3) + " : " + logaritmic.to_fixed(2).pad_left(6))
+    if(vessel.main_body.has_atmosphere)
+        max(gravity, trigonometric)
+    else
+        max(gravity, logaritmic)
 }
 
 pub sync fn latitude_from_angle(angle: float) -> float =
@@ -36,6 +52,12 @@ pub sync fn compassFromDirection(vessel: Vessel, direction: Direction) -> float 
     const y = vessel.east.dot(direction.vector)
     const compass = atan2_deg(y, x)
     clamp_degrees360(compass)
+}
+
+pub sync fn current_prograde_pitch(vessel: Vessel) -> float = {
+    const z = vessel.up.dot(vessel.orbit.prograde(current_time()))
+    const pitch = asin_deg(z)
+    clamp_degrees360(pitch)
 }
 
 pub sync fn expected_LAN(coord: GeoCoordinates, inclination: float) -> Option<float> = {

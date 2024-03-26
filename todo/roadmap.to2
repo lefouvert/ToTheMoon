@@ -1,5 +1,9 @@
 // TODO tags in code
+// \((\s*)fn(\s*)\((\s*)(?<param>.*)(\s*)\)(\s*)->(\s*)(\s*)(\4)(\s*)\)   pour chercher de quoi faire une fonction identité
+// deprecate EngineFuel and use EngineMode.propellant
+// isolate satelite from launcher
 // separate processus logger who can still run even if main processus fail. (and share data with monitor ?)
+// console toggle between action log && debug trace
 // monitor : 5 last line of logger ? science experiements status ? part review ?
 // maneuver::set_apsis_at_aop
 // maneuver::set_inclination_fine
@@ -10,4 +14,10 @@
 // Ship::land_atm (at ?)
 // Ship::land_vacuum (at ?)
 // Ship::crash
+// dock viewer (Canvas => my port : circle + cross // other port (color switch between green and red fn good bad): ellipse (eccentricity = rotation, sma = distance), text : distance z, vertical shift: horizontal line + text, horizontal shift: vertical line + text)
 // mission builder
+
+// update to do because of Kontrol System evolution :
+// update Results
+// update Ship.launch_timeStamp
+// update Ship.print to print log to (DEBUG::)
