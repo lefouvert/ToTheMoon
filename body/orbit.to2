@@ -34,7 +34,7 @@ pub sync fn semi_minor_axis(semiMajorAxis: float, eccentricity: float) -> float 
     semiMajorAxis * sqrt(1 - (eccentricity**2))
 
 
-sync fn mean_anomaly(trueAnomaly: float, eccentricity: float) -> float = { // RADIAN
+sync fn mean_anomaly(trueAnomaly: float, eccentricity: float) -> float = { // DEGREE
     const eccentricAnomaly = acos_deg( (eccentricity + cos_deg(trueAnomaly)) / (1 + (eccentricity * cos_deg(trueAnomaly))) )
     eccentricAnomaly - (eccentricity * sin_deg(eccentricAnomaly))
 }
