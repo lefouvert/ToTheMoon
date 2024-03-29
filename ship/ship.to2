@@ -4,7 +4,7 @@ use { current_time, wait_until, wait_while, yield, sleep } from ksp::game
 use { Direction, Vec3, vec3, TransformFrame, look_dir_up } from ksp::math
 use { min, max, clamp, abs, MIN_FLOAT } from core::math
 use { ExperimentState, Experiment, ResearchLocation, ResearchReport, ScienceSituation } from ksp::science
-use { is_physics_time_warp, is_warping, warp_to} from ksp::game::warp
+use { is_physics_time_warp, is_warping, warp_to, max_warp_index} from ksp::game::warp
 use { CONSOLE } from ksp::console
 
 use { MovingAverage, moving_average } from ksp::control
@@ -12,7 +12,7 @@ use { MovingAverage, moving_average } from ksp::control
 // use { control_steering } from ship::steering
 use { control_steering } from std::control::steering
 
-use { ThrustSituation, ThrustSituationConst, MassState, MassStateConst, Throttle, Resource } from ship::constant
+use { ThrustSituation, ThrustSituationConst, MassState, MassStateConst, Throttle, Resource, ATMOSPHERIC_WARP } from ship::constant
 use { InsignificantAtmoshpere } from body::constant
 use { Circle, Array, Sexagesimal } from math::constant
 use { String } from ui::constant
@@ -146,7 +146,7 @@ impl Ship {
         self.smoothStop.lastThrottle = Throttle.Max
     }
 
-    sync fn throttle_altitude(self, measure:float) -> float = { // TODO check why sometime it stop early
+    sync fn throttle_altitude(self, measure: float) -> float = { // TODO check why sometime it stop early
         // if(abs(self.smoothStop.differential.lastResult) < MIN_FLOAT)
         //     return self.smoothStop.lastThrottle
 
@@ -159,14 +159,24 @@ impl Ship {
         if(abs(dMByDT) < MIN_FLOAT)
             return self.smoothStop.lastThrottle // TODO
 
-        const commun_direction = self.ship.facing.vector.normalized.dot(self.prograde().vector.normalized)
-        const deltaDirection =
-            if(self.smoothStop.target < measure)
-                (abs(dMByDT) * self.smoothStop.timeToStop) / commun_direction
-            else
-                commun_direction / (abs(dMByDT) * self.smoothStop.timeToStop)
+        const communDirection = self.ship.facing.vector.normalized.dot(self.prograde().vector.normalized)
+        const deltaDirection = communDirection / (abs(dMByDT) * self.smoothStop.timeToStop)
+            // if(self.smoothStop.target < measure)
+            //     (abs(dMByDT) * self.smoothStop.timeToStop) / communDirection
+            // else
+            //     communDirection / (abs(dMByDT) * self.smoothStop.timeToStop)
+
+ksp::console::CONSOLE.print_at(14, 50, "ttStop".pad_right(7) + " : " + self.smoothStop.timeToStop.to_fixed(2).pad_left(6))
+ksp::console::CONSOLE.print_at(14, 70, "comDir".pad_right(7) + " : " + communDirection.to_fixed(2).pad_left(6))
+ksp::console::CONSOLE.print_at(15, 50, "measur".pad_right(7) + " : " + measure.to_fixed(2).pad_left(6))
+ksp::console::CONSOLE.print_at(15, 70, "target".pad_right(7) + " : " + self.smoothStop.target.to_fixed(2).pad_left(6))
+ksp::console::CONSOLE.print_at(16, 50, "Dm/Dt".pad_right(7) + " : " + dMByDT.to_fixed(2).pad_left(6))
+ksp::console::CONSOLE.print_at(16, 70, "Ddir".pad_right(7) + " : " + deltaDirection.to_fixed(4).pad_left(6))
+ksp::console::CONSOLE.print_at(17, 50, "lTtl0".pad_right(7) + " : " + self.smoothStop.lastThrottle.to_fixed(2).pad_left(6))
+
 
         self.smoothStop.lastThrottle = clamp((self.smoothStop.target - measure) * deltaDirection, Throttle.Shut, min(self.smoothStop.lastThrottle + 0.01, Throttle.Max))
+ksp::console::CONSOLE.print_at(17, 70, "lTtl+".pad_right(7) + " : " + self.smoothStop.lastThrottle.to_fixed(2).pad_left(6))
         self.smoothStop.lastThrottle
     }
 
@@ -257,9 +267,10 @@ ksp::debug::DEBUG.clear_markers()
         if(eta_trueAnomaly(vessel.orbit, Circle.None) < eta_trueAnomaly(vessel.orbit, Circle.Semi) && vessel.orbit.periapsis < atmosphere_depth(vessel.main_body)
         || is_physics_time_warp()
         || is_warping()
-        || time - current_time() < Sexagesimal)
+        || time - current_time() < Sexagesimal
+        || max_warp_index() <= ATMOSPHERIC_WARP)
             return false
-
+// TODO check warp scale is greater than 4×
         vessel.release_control()
         vessel.autopilot.mode = AutopilotMode.StabilityAssist
 

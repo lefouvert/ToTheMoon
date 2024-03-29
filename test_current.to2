@@ -11,6 +11,7 @@ use { fast_orbit, create_orbit, semi_major_axis, orbitalToGeoLongitude } from bo
 use { clear_altitude } from body::atmosphere
 
 use { log10, floor, abs, round, MAX_FLOAT } from core::math
+
 sync fn test(value: float, significantDigit: int = 6) -> float = {
         const shiftSig = (
         if (significantDigit < 0)
@@ -31,6 +32,19 @@ result
 /// Entry Point
 pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
     ksp::console::CONSOLE.clear()
+
+
+// _other::philou::transfert_inc::set_inc_next_patch(vessel, 90, ksp::game::current_time() + 600)
+
+_other::philou::change_inc_copy::set_inc_next_patch(vessel, 90, ksp::game::current_time() + 600)
+return Ok({})
+
+
+const list = (0..100).map(fn(e) -> e * 0.01).reverse()
+
+const minimum_of_list = list.reduce( (if(false)0.0), fn(mini, e) -> if(mini.defined) Some(core::math::min(mini.value, e)) else Some(e))
+ksp::console::CONSOLE.print_line("min: " + minimum_of_list.value.to_string())
+return Ok({})
 
 ksp::console::CONSOLE.print_line("global_facing: (control)" + vessel.global_facing.to_string(vessel.control_frame) + " (body)" + vessel.global_facing.to_string(vessel.body_frame)+ ": (body Cel)" + vessel.global_facing.to_string(vessel.main_body.celestial_frame))
 for(c in vessel.command_modules)

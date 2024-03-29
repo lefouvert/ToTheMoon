@@ -3,6 +3,7 @@
 // deprecate EngineFuel and use EngineMode.propellant
 // isolate satelite from launcher
 // separate processus logger who can still run even if main processus fail. (and share data with monitor ?)
+// debug manager ? in order to toggle console to log view or debug view.
 // console toggle between action log && debug trace
 // monitor : 5 last line of logger ? science experiements status ? part review ?
 // maneuver::set_apsis_at_aop

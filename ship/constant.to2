@@ -69,3 +69,5 @@ pub const Throttle: (Max: ThrottleConst, Min: ThrottleConst, Shut: ThrottleConst
     // Min: 0.000001, // = 0.0 : have no action
     Shut: 0.0
 )
+
+pub const ATMOSPHERIC_WARP: int = 4

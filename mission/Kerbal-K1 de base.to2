@@ -5,6 +5,7 @@ use { Apsis } from maneuver::constant
 use { Ship } from ship::ship
 use { sanitityCheck, takeOff } from maneuver::takeof
 use { ascent } from maneuver::ascent
+use { set_apsis_fine } from maneuver::setapsis
 use { circularize } from maneuver::conjunct::circularize
 use { fast_orbit, create_orbit, semi_major_axis } from body::orbit
 use { expected_LAN } from ship::navigation
@@ -16,7 +17,8 @@ pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
     const ship = Ship(vessel)
 
     const peri = 200000.0
-    const inclination = 30
+    // const inclination = 30
+    const inclination = 0 //Phil
     const KerbinLowOrbit = create_orbit(vessel.main_body, peri, inclination, semi_major_axis(vessel.main_body, peri, peri + 10000), expected_LAN(vessel.geo_coordinates, inclination).value, 0.0)
 
     if (vessel.situation == VesselSituation.PreLaunch){
@@ -30,6 +32,8 @@ pub fn main_flight(vessel: Vessel) -> Result<Unit, string> = {
 
     circularize(ship)
     ship.park()
+    ksp::game::sleep(20)
+    set_apsis_fine(ship, Apsis.Periapsis, 100000)
 
     Ok({})
 }

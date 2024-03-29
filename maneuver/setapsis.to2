@@ -61,26 +61,31 @@ sync fn controleThrottle(ship: Ship, altitude: float, burntime: float, thrustTru
     const throttleTime =
         if (etaManeuver > 0)
             clamp(min(
-                    max((- eta_thrust(ship, burntime, etaManeuver) * burntime), Throttle.Min),
+                    (- eta_thrust(ship, burntime, etaManeuver) * burntime),
+                    // max((- eta_thrust(ship, burntime, etaManeuver) * burntime), Throttle.Min),
                     (- eta_thrust(ship, burntime, etaManeuver) / inertia(ship))
             ), Throttle.Shut, Throttle.Max)
         else
             Throttle.Shut
 
-// ksp::console::CONSOLE.print_at(4, 30, "inertia: " + inertia(ship).to_string() + " thrust_ratio: " + thrust_ratio(ship).to_fixed(3))
-// ksp::console::CONSOLE.print_at(5, 50, "ttSlow: " + ((- eta_thrust(ship, burntime, etaManeuver) * burntime) <= (- eta_thrust(ship, burntime, etaManeuver) / reaction_time(ship))).to_string() + "  ")
-
+ksp::console::CONSOLE.print_at(4, 30, "inertia: " + inertia(ship).to_string() + " thrust_ratio: " + thrust_ratio(ship).to_fixed(3))
+ksp::console::CONSOLE.print_at(5, 50, "ttSlow: " + ((- eta_thrust(ship, burntime, etaManeuver) * burntime) <= (- eta_thrust(ship, burntime, etaManeuver) / inertia(ship))).to_string() + "  ")
+ksp::console::CONSOLE.print_at(12, 50, "ThTa".pad_right(7) + " : " + thrustTrueAno.to_fixed(2).pad_left(6))
+ksp::console::CONSOLE.print_at(12, 70, "BT".pad_right(7) + " : " + burntime.to_fixed(2).pad_left(6))
+ksp::console::CONSOLE.print_at(13, 50, "MnEta".pad_right(7) + " : " + etaManeuver.to_fixed(2).pad_left(6))
+ksp::console::CONSOLE.print_at(13, 70, "ThEta".pad_right(7) + " : " + eta_thrust(ship, burntime, etaManeuver).to_fixed(2).pad_left(6))
+    // const maxAllowedThrottle = [throttleTime, ship.throttle_temperature(), ship.throttle_q()]
     const maxAllowedThrottle = [throttleTime, ship.throttle_temperature(), ship.throttle_q(), ship.throttle_altitude(altitude)]
         .sort()[Array.First]
-
-// ksp::console::CONSOLE.print_at(9, 50, "ttTi ttTe ttQ  ttAl ttDi")
+//TODO why ship.throttle_altitude(altitude) broken for Decrease ?
+ksp::console::CONSOLE.print_at(9, 50, "ttTi ttTe ttQ  ttAl ttDi")
 // ksp::console::CONSOLE.print_at(11, 50, maxAllowedThrottle.to_fixed(2))
-// ksp::console::CONSOLE.print_at(12, 50, maxAllowedThrottle.to_string())
-// ksp::console::CONSOLE.print_at(10, 50, throttleTime.to_fixed(2))
-// ksp::console::CONSOLE.print_at(10, 55, ship.throttle_temperature().to_fixed(2))
-// ksp::console::CONSOLE.print_at(10, 60, ship.throttle_q().to_fixed(2))
-// ksp::console::CONSOLE.print_at(10, 65, ship.throttle_altitude(altitude).to_fixed(2))
-// ksp::console::CONSOLE.print_at(10, 70, ship.throttle_direction(thrustDirection, 1.0, 1.0).to_fixed(2))
+ksp::console::CONSOLE.print_at(11, 50, maxAllowedThrottle.to_string())
+ksp::console::CONSOLE.print_at(10, 50, throttleTime.to_fixed(2))
+ksp::console::CONSOLE.print_at(10, 55, ship.throttle_temperature().to_fixed(2))
+ksp::console::CONSOLE.print_at(10, 60, ship.throttle_q().to_fixed(2))
+ksp::console::CONSOLE.print_at(10, 65, ship.throttle_altitude(altitude).to_fixed(2))
+ksp::console::CONSOLE.print_at(10, 70, ship.throttle_direction(thrustDirection, 1.0, 1.0).to_fixed(2))
 
 // ksp::console::CONSOLE.print_at(16, 50, "etaTh".pad_right(7) + " : " + etaManeuver.to_fixed(2).pad_left(6))
 // ksp::console::CONSOLE.print_at(16, 70, "refEta".pad_right(7) + " : " + etaManeuver.to_fixed(2).pad_left(6))
@@ -115,13 +120,24 @@ pub fn set_apsis_fine(ship: Ship, apsis: ApsisConst, altitude:float) -> Result<U
     const thrustOrientation = if(toSetApsis() < altitude) ApsisModification.Raise else ApsisModification.Decrease
 
     const deltaVLeft = fn() -> param_deltaV(vessel.orbit, semi_major_axis(body, toKeepApsis(), altitude), vessel.orbit.inclination, toKeepApsis(), toKeepApsis())
-
+ksp::console::CONSOLE.print_at(4, 50, if(thrustOrientation == ApsisModification.Raise) "Raise" else "Decrease")
+    // const done = fn() -> {
+    //     if(round(significant_digit(toKeepApsis(), accuracy)) == round(significant_digit(toSetApsis(), accuracy))) return true
+    //     if(thrustOrientation == ApsisModification.Raise) (round(significant_digit(toSetApsis(), accuracy)) >= round(significant_digit(altitude, accuracy))) else (round(significant_digit(toSetApsis(), accuracy)) <= round(significant_digit(altitude, accuracy)))
+    // }
     const done = fn() -> {
-        if(round(significant_digit(toKeepApsis(), accuracy)) == round(significant_digit(toSetApsis(), accuracy))) return true
-        if(thrustOrientation == ApsisModification.Raise) (round(significant_digit(toSetApsis(), accuracy)) >= round(significant_digit(altitude, accuracy))) else (round(significant_digit(toSetApsis(), accuracy)) <= round(significant_digit(altitude, accuracy)))
+        if(thrustOrientation == ApsisModification.Raise){
+            if(toSetApsis() < toKeepApsis())
+                return (round(significant_digit(toSetApsis(), accuracy)) >= min(round(significant_digit(altitude, accuracy)), round(significant_digit(toKeepApsis(), accuracy))))
+            (round(significant_digit(toSetApsis(), accuracy)) >= round(significant_digit(altitude, accuracy)))
+        } else {
+            if(toSetApsis() > toKeepApsis())
+                return (round(significant_digit(toSetApsis(), accuracy)) <= max(round(significant_digit(altitude, accuracy)), round(significant_digit(toKeepApsis(), accuracy))))
+            (round(significant_digit(toSetApsis(), accuracy)) <= round(significant_digit(altitude, accuracy)))
+        }
     }
 
-    ship.set_throttle_altitude(altitude, MIN_BURNTIME / 3)
+    ship.set_throttle_altitude(altitude, MIN_BURNTIME)
     const tmanager = vessel.manage_throttle(fn(deltaT) -> controleThrottle(
         ship,
         toSetApsis(),
@@ -139,9 +155,10 @@ pub fn set_apsis_fine(ship: Ship, apsis: ApsisConst, altitude:float) -> Result<U
         ship.check_science()
 
 
-// ksp::console::CONSOLE.print_at(1, 50, "toKeep: " + round(significant_digit(toKeepApsis(), accuracy)).to_string() + "  ")
-// ksp::console::CONSOLE.print_at(2, 50, "toSet : " + round(significant_digit(toSetApsis(), accuracy)).to_string() + "  ")
-// ksp::console::CONSOLE.print_at(3, 50, "toAim : " + round(significant_digit(altitude, accuracy)).to_string() + "  ")
+ksp::console::CONSOLE.print_at(1, 50, "toKeep: " + round(significant_digit(toKeepApsis(), accuracy)).to_string() + "  ")
+ksp::console::CONSOLE.print_at(2, 50, "toSet : " + round(significant_digit(toSetApsis(), accuracy)).to_string() + "  ")
+ksp::console::CONSOLE.print_at(3, 50, "toAim : " + round(significant_digit(altitude, accuracy)).to_string() + "  ")
+ksp::console::CONSOLE.print_at(4, 50, if(thrustOrientation == ApsisModification.Raise) "Raise" else "Decrease")
 // ksp::console::CONSOLE.print_at(3, 70, "acc : " + accuracy.to_string() + "  ")
 
         if (ship.deltaV() < 1)
